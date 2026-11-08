@@ -1,0 +1,196 @@
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #cfe6f5;
+  font-family: "Pretendard", "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  color: #1f2a5c;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+  overscroll-behavior: none;
+}
+
+#scene {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: grab;
+  touch-action: none;
+}
+#scene.grabbing { cursor: grabbing; }
+
+button { font-family: inherit; }
+
+/* ---------- PC / 터치 전용 표시 ---------- */
+.touch-only { display: none !important; }
+body.touch .touch-only { display: block !important; }
+body.touch .pc-only { display: none !important; }
+
+/* ---------- 상단 HUD ---------- */
+#hud-top {
+  position: fixed;
+  top: calc(10px + env(safe-area-inset-top));
+  left: calc(10px + env(safe-area-inset-left));
+  right: calc(10px + env(safe-area-inset-right));
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: none;
+}
+#title {
+  background: rgba(31, 42, 92, 0.85);
+  color: #fff;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 15px;
+}
+.round-btn {
+  pointer-events: auto;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.9);
+  color: #1f2a5c;
+  font-size: 18px;
+  font-weight: 800;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+}
+#fps {
+  position: fixed;
+  top: calc(52px + env(safe-area-inset-top));
+  left: calc(10px + env(safe-area-inset-left));
+  font: 12px monospace;
+  background: rgba(0, 0, 0, 0.5);
+  color: #0f0;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* ---------- 조작 안내 ---------- */
+#help {
+  position: fixed;
+  left: 50%;
+  top: calc(56px + env(safe-area-inset-top));
+  transform: translate(-50%, -10px);
+  background: rgba(255, 255, 255, 0.92);
+  padding: 10px 16px;
+  border-radius: 14px;
+  font-size: 14px;
+  line-height: 1.6;
+  text-align: center;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s, transform 0.3s;
+  max-width: calc(100% - 24px);
+}
+#help.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* ---------- 조이스틱 ---------- */
+#joystick {
+  position: fixed;
+  left: calc(90px + env(safe-area-inset-left));
+  top: calc(100% - 110px - env(safe-area-inset-bottom));
+  width: 120px;
+  height: 120px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.25);
+  border: 3px solid rgba(255, 255, 255, 0.7);
+  pointer-events: none;
+  opacity: 0.55;
+  transition: opacity 0.15s;
+}
+#joystick.active { opacity: 1; }
+#joystick-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 54px;
+  height: 54px;
+  margin: -27px 0 0 -27px;
+  border-radius: 50%;
+  background: rgba(31, 42, 92, 0.8);
+  border: 3px solid #fff;
+}
+
+/* ---------- 동작 버튼 ---------- */
+#actions {
+  position: fixed;
+  right: calc(16px + env(safe-area-inset-right));
+  bottom: calc(20px + env(safe-area-inset-bottom));
+  width: 190px;
+  height: 190px;
+  pointer-events: none;
+}
+.act-btn {
+  position: absolute;
+  pointer-events: auto;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  background: rgba(31, 42, 92, 0.75);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  touch-action: none;
+  transition: transform 0.08s;
+}
+.act-btn.down { transform: scale(0.9); background: rgba(31, 42, 92, 0.95); }
+.act-btn.hidden { display: none; }
+.act-btn.big { width: 84px; height: 84px; right: 0; bottom: 0; font-size: 16px; background: rgba(230, 120, 40, 0.85); }
+#btn-grab  { right: 96px; bottom: 6px; }
+#btn-throw { right: 84px; bottom: 84px; }
+#btn-kick  { right: 10px; bottom: 100px; }
+
+/* ---------- 시작 화면 ---------- */
+#start {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(31, 42, 92, 0.55);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  padding: 16px;
+  transition: opacity 0.3s;
+}
+#start.hidden { opacity: 0; pointer-events: none; }
+.card {
+  background: #fff;
+  border-radius: 24px;
+  padding: 28px 24px;
+  text-align: center;
+  max-width: 360px;
+  width: 100%;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+}
+.card .logo { font-size: 48px; }
+.card h1 { margin: 8px 0 6px; font-size: 24px; }
+.card p { margin: 6px 0; font-size: 14px; color: #44507a; }
+.card .hint { font-size: 12px; color: #8088a8; margin-top: 14px; }
+#btn-start {
+  margin-top: 14px;
+  padding: 12px 36px;
+  font-size: 18px;
+  font-weight: 800;
+  border: none;
+  border-radius: 999px;
+  background: #e67828;
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 4px 0 #b55a18;
+}
+#btn-start:active { transform: translateY(2px); box-shadow: 0 2px 0 #b55a18; }

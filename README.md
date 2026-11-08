@@ -1,1 +1,21 @@
-# gym-metaverse
+# 가상 체육관 (gym-metaverse)
+
+학교 체육관을 3D로 재현한 웹 공간입니다. 기획은 [PLAN.md](PLAN.md)를 참고하세요.
+
+## 실행
+빌드 과정이 없습니다. 라이브러리(Three.js, cannon-es)는 `js/vendor/`에 포함되어 있습니다.
+
+```bash
+python3 -m http.server 8000
+# 브라우저에서 http://localhost:8000 접속 (주소 뒤에 ?fps 를 붙이면 FPS 표시)
+```
+
+## 설정
+학교명 등은 `js/config.js` 한 곳에서 바꿉니다.
+
+## 조작
+- PC: WASD/방향키 이동, 스페이스 점프, 마우스 드래그 시점, 휠 확대·축소
+- 모바일: 왼쪽 조이스틱 이동, 오른쪽 드래그 시점, 두 손가락 확대·축소, 점프 버튼
+
+## 저장 규칙
+localStorage 키는 모두 `gym_`으로 시작하며(`js/storage.js`), 다른 키는 읽거나 지우지 않습니다.

@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#1f2a5c" />
+  <title>가상 체육관</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <!-- 라이브러리는 저장소 안(js/vendor)에 포함: 외부 서버 없이 동작 -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./js/vendor/three.module.min.js",
+        "cannon-es": "./js/vendor/cannon-es.js"
+      }
+    }
+  </script>
+</head>
+<body>
+  <canvas id="scene"></canvas>
+
+  <!-- 상단 -->
+  <div id="hud-top">
+    <div id="title" data-school-title>가상 체육관</div>
+    <button id="btn-help" class="round-btn" aria-label="조작 방법">?</button>
+  </div>
+  <div id="fps" hidden></div>
+
+  <!-- 조작 안내 -->
+  <div id="help">
+    <div class="pc-only">
+      <b>WASD / 방향키</b> 이동 · <b>스페이스</b> 점프<br />
+      <b>마우스 드래그</b> 시점 회전 · <b>휠</b> 확대·축소
+    </div>
+    <div class="touch-only">
+      <b>왼쪽</b> 조이스틱으로 이동 · <b>오른쪽</b> 드래그로 시점<br />
+      <b>두 손가락</b>으로 확대·축소
+    </div>
+  </div>
+
+  <!-- 모바일 조이스틱 -->
+  <div id="joystick" class="touch-only"><div id="joystick-knob"></div></div>
+
+  <!-- 동작 버튼 (잡기·던지기·차기는 2단계에서 기구 가까이 가면 나타남) -->
+  <div id="actions" class="touch-only">
+    <button class="act-btn hidden" data-action="grab" id="btn-grab">잡기</button>
+    <button class="act-btn hidden" data-action="throw" id="btn-throw">던지기</button>
+    <button class="act-btn hidden" data-action="kick" id="btn-kick">차기</button>
+    <button class="act-btn big" data-action="jump" id="btn-jump">점프</button>
+  </div>
+
+  <!-- 시작 화면 -->
+  <div id="start">
+    <div class="card">
+      <div class="logo">🏀</div>
+      <h1 data-school-title>가상 체육관</h1>
+      <p>아바타로 체육관을 자유롭게 돌아다녀 보세요!</p>
+      <button id="btn-start">입장하기</button>
+      <p class="hint pc-only">WASD 이동 · 스페이스 점프 · 드래그 시점 · 휠 확대</p>
+      <p class="hint touch-only">왼쪽 조이스틱 이동 · 오른쪽 드래그 시점</p>
+    </div>
+  </div>
+
+  <noscript>이 페이지는 자바스크립트가 필요합니다.</noscript>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
