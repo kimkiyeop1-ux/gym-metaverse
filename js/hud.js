@@ -11,6 +11,10 @@ export class Hud {
     this.score = document.getElementById('score');
     this.popupEl = document.getElementById('popup');
     this.counterEl = document.getElementById('counter');
+    this.toastEl = document.getElementById('toast');
+    this.pill = document.getElementById('players-pill');
+    this.listEl = document.getElementById('players-list');
+    this.pill.addEventListener('click', () => { this.listEl.hidden = !this.listEl.hidden; });
     this.lastCounter = '';
     this.lastSig = '';
     this.lastScore = '';
@@ -79,6 +83,24 @@ export class Hud {
     }
     this.counterEl.innerHTML = `<div class="small">${title}</div><div class="big">${value}</div><div class="small">${sub}</div>`;
     this.counterEl.classList.add('show');
+  }
+
+  toast(msg) {
+    const el = this.toastEl;
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(this.toastTimer);
+    this.toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+  }
+
+  // 접속자 목록 [{name, me}]
+  setPlayers(list) {
+    this.pill.hidden = false;
+    document.body.classList.add('mp');
+    this.pill.textContent = `👥 ${list.length}명`;
+    this.listEl.innerHTML = list
+      .map((p) => `<div class="${p.me ? 'me' : ''}">${p.name.replace(/[<>&]/g, '')}</div>`)
+      .join('');
   }
 
   popup(text) {

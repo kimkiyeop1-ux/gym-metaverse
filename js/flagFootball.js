@@ -100,11 +100,52 @@ export class PracticeFriend {
   say(text, time = 1.6) {
     this.bubble.userData.set(text);
     this.bubbleTimer = time;
+    this.bubbleText = text;
   }
 
   // 말하지 않을 때는 이름표
   showName() {
     this.bubble.userData.set('연습 친구', 'rgba(95,211,95,0.9)', '#ffffff');
+    this.bubbleText = '';
+  }
+
+  // 여러 명 접속: 방장이 보낸 상태를 따라 그림
+  applyRemote(d, dt) {
+    const b = this.body;
+    if (!this.remote) {
+      this.remote = true;
+      b.type = CANNON.Body.KINEMATIC;
+      b.velocity.set(0, 0, 0);
+    }
+    const f = String(d.s || '').split(',').map(Number);
+    if (f.length < 5) return;
+    const k = Math.min(1, 10 * dt);
+    const nx = b.position.x + (f[0] - b.position.x) * k;
+    const nz = b.position.z + (f[1] - b.position.z) * k;
+    b.velocity.set((nx - b.position.x) / Math.max(dt, 0.001), 0, (nz - b.position.z) / Math.max(dt, 0.001));
+    b.position.set(nx, 0.0, nz);
+    let dh = f[2] - this.heading;
+    dh = Math.atan2(Math.sin(dh), Math.cos(dh));
+    this.heading += dh * k;
+    this.anim.moveAmount = f[3];
+    if (f[4] !== this.flagsLeft) {
+      this.flagsLeft = f[4];
+      this.parts.flags.forEach((fl, i) => { fl.visible = i < this.flagsLeft; });
+    }
+    if ((d.b || '') !== this.remoteBubble) {
+      this.remoteBubble = d.b || '';
+      if (this.remoteBubble) this.bubble.userData.set(this.remoteBubble);
+      else this.showName();
+    }
+  }
+
+  // 다시 내가 계산하게 됨 (방장이 됨)
+  makeLocal() {
+    if (!this.remote) return;
+    this.remote = false;
+    this.body.type = CANNON.Body.DYNAMIC;
+    this.body.updateMassProperties();
+    this.body.wakeUp();
   }
 
   get position() {
@@ -133,6 +174,7 @@ export class PracticeFriend {
 
   // 물리 스텝 전
   update(dt, playerPos) {
+    if (this.remote) this.makeLocal();
     const b = this.body;
     const p = b.position;
     const B = this.bounds;

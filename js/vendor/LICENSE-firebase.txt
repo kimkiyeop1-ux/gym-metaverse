@@ -1,0 +1,4 @@
+firebase (Firebase JavaScript SDK) v10.14.1 — Apache License 2.0
+Copyright Google LLC
+https://github.com/firebase/firebase-js-sdk/blob/master/LICENSE
+This file (firebase.js) is a minified ESM bundle of firebase/app, firebase/auth and firebase/database.

@@ -47,8 +47,11 @@ export class Game {
     const items = this.items;
 
     // E: 플래그 뽑기 > 플래그 착용/벗기 > 잡기/놓기
+    const friend = this.mp ? this.mp.pullablePlayer(pos) : null;
     if (this.npc.canPull(pos)) {
       acts.push({ id: 'pull', label: '플래그\n뽑기', key: 'E', color: 'throw' });
+    } else if (friend) {
+      acts.push({ id: 'pullp', label: '플래그\n뽑기', key: 'E', color: 'throw', target: friend });
     } else if (this.beltBox.isNear(pos)) {
       acts.push(a.wearingFlags
         ? { id: 'unwear', label: '플래그\n벗기', key: 'E' }
@@ -224,9 +227,31 @@ export class Game {
       case 'rope': return this.rope.press();
       case 'spin': return this.hoop.press();
       case 'roll': return this.rollHoop();
+      case 'pullp':
+        a.playAction('pull');
+        if (this.mp.pullPlayer(act.target)) {
+          this.flagScore++;
+          this.hud.popup(`🚩 ${act.target.name} 플래그!`);
+          this.sound.flag();
+          const q = act.target.position;
+          this.effects.sparkle(q.x, q.y + 0.75, q.z);
+        }
+        return;
       case 'pull':
         a.playAction('pull');
-        if (this.npc.pullFlag()) {
+        // 여러 명 접속 중이고 내가 방장이 아니면: 방장에게 알려서 연습 친구 플래그를 줄임
+        if (this.mp && !this.mp.isHost) {
+          if (this.npc.flagsLeft > 0) {
+            this.room().sendEvent({ k: 'npcpull' });
+            this.npc.flagsLeft--;
+            this.npc.parts.flags[this.npc.flagsLeft].visible = false;
+            this.flagScore++;
+            this.hud.popup('🚩 플래그!');
+            this.sound.flag();
+            const q = this.npc.position;
+            this.effects.sparkle(q.x, q.y + 0.75, q.z);
+          }
+        } else if (this.npc.pullFlag()) {
           this.flagScore++;
           this.hud.popup('🚩 플래그!');
           this.sound.flag();
@@ -251,11 +276,22 @@ export class Game {
   }
 
   // ---------------- 들기 ----------------
+  // 여러 명 접속: 공을 만지면 내가 주인이 됨
+  claim(it) {
+    if (this.mp && it) this.mp.claimItem(it);
+  }
+
+  room() {
+    return this.mp.room;
+  }
+
   grab(it) {
     if (!it || this.held) return;
+    this.claim(it);
     this.items.setHeld(it, true);
     this.held = it;
     this.avatar.holdPose = it.def.hold;
+    if (this.mp) this.mp.markHeld(it);
     if (it.def.rope) {
       it.mesh.visible = false;
       this.rope.pickUp();
@@ -393,6 +429,7 @@ export class Game {
   // ---------------- 차기·띄우기·토스·스파이크·치기 ----------------
   kick(it) {
     if (!it) return;
+    this.claim(it);
     const a = this.avatar;
     const dir = this.faceAim();
     a.playAction('kick');
@@ -406,6 +443,7 @@ export class Game {
   }
 
   lift(it) {
+    this.claim(it);
     const dir = this.faceAim();
     this.avatar.playAction('toss');
     this.sound.kick();
@@ -415,6 +453,7 @@ export class Game {
 
   toss(it) {
     if (!it) return;
+    this.claim(it);
     const a = this.avatar;
     const dir = this.faceAim();
     a.playAction('toss');
@@ -429,6 +468,7 @@ export class Game {
 
   spike(it) {
     if (!it) return;
+    this.claim(it);
     const dir = this.faceAim();
     this.avatar.playAction('swing');
     this.sound.kick();
@@ -448,6 +488,7 @@ export class Game {
       const b = it.body.position;
       const d = Math.hypot(b.x - p.x, b.z - p.z);
       if (d > 1.8 || b.y > p.y + 3.3) continue;
+      this.claim(it);
       if (b.y > p.y + 2.0 && !a.grounded) {
         // 점프 스매시
         this.items.launch(it, dir.x * 24, -5, dir.z * 24);
@@ -470,7 +511,9 @@ export class Game {
   }
 
   // 공 정리 버튼
-  resetAll() {
+  // fromNet: 친구가 누른 정리 (알림으로 받음)
+  resetAll(fromNet = false) {
+    if (this.mp && !fromNet) this.mp.broadcastReset();
     if (this.held) {
       const it = this.held;
       if (it.mesh.parent !== this.items.scene) this.items.scene.add(it.mesh);

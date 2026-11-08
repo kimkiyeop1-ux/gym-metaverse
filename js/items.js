@@ -282,7 +282,7 @@ export class Items {
 
   applyForces() {
     for (const it of this.list) {
-      if (it.held || it.body.sleepState === CANNON.Body.SLEEPING) continue;
+      if (it.held || it.remote || it.body.sleepState === CANNON.Body.SLEEPING) continue;
       const b = it.body, v = b.velocity;
       const speed = v.length();
       if (it.def.shuttle && speed > 0.01) {
@@ -305,7 +305,7 @@ export class Items {
   nearest(pos, maxDist, filter) {
     let best = null, bestD = maxDist;
     for (const it of this.list) {
-      if (it.held || it.busy || (filter && !filter(it))) continue;
+      if (it.held || it.busy || it.remoteHolder || (filter && !filter(it))) continue;
       const p = it.body.position;
       const dx = p.x - pos.x, dz = p.z - pos.z;
       const dy = Math.max(0, Math.abs(p.y - (pos.y + 0.7)) - 0.9); // 몸 높이 범위 밖일 때만 높이 차 반영
@@ -418,7 +418,7 @@ export class Items {
   update(dt) {
     for (const it of this.list) {
       if (it.rolling) { this.updateRolling(it, dt); continue; }
-      if (it.held || it.busy) continue;
+      if (it.held || it.busy || it.remote) continue; // remote: 친구 기기가 계산 중
       const b = it.body;
       const p = b.interpolatedPosition;
       const v = b.velocity;

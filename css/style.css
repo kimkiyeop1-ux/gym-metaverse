@@ -418,3 +418,81 @@ body:not(.touch) .act-btn.slot { display: none; }
   cursor: pointer;
 }
 #btn-install[hidden] { display: none; }
+
+/* ---------- 입장: 닉네임·방 코드 ---------- */
+#join-fields { margin-top: 12px; text-align: left; }
+#join-fields[hidden] { display: none; }
+.field { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
+.field span { width: 56px; font-size: 14px; font-weight: 800; color: #1f2a5c; flex: none; }
+.field input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 16px; /* 16px 이상이어야 아이폰에서 확대되지 않음 */
+  padding: 9px 12px;
+  border: 2px solid #c9cfe3;
+  border-radius: 12px;
+  outline: none;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.field input:focus { border-color: #1f2a5c; }
+.card .hint.small { margin: 2px 0 0; font-size: 12px; text-align: center; }
+.card .error { color: #d23a2a; font-size: 13px; font-weight: 700; text-align: center; margin: 6px 0 0; }
+.link-btn {
+  display: block;
+  margin: 10px auto 0;
+  background: none;
+  border: none;
+  color: #6b7396;
+  font-size: 13px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.link-btn[hidden] { display: none; }
+
+/* ---------- 접속자 ---------- */
+#players-pill {
+  position: fixed;
+  top: calc(52px + env(safe-area-inset-top));
+  left: calc(10px + env(safe-area-inset-left));
+  border: none;
+  border-radius: 999px;
+  padding: 4px 12px;
+  background: #2ec4b6;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+#players-pill[hidden], #players-list[hidden] { display: none; }
+body.mp #score { top: calc(84px + env(safe-area-inset-top)); }
+#players-list {
+  position: fixed;
+  top: calc(84px + env(safe-area-inset-top));
+  left: calc(10px + env(safe-area-inset-left));
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 12px;
+  padding: 8px 12px;
+  font-size: 14px;
+  line-height: 1.7;
+  max-height: 50vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+  z-index: 5;
+}
+#players-list .me { font-weight: 800; color: #1f2a5c; }
+
+/* 시작 화면: 화면이 낮으면(가로 휴대폰) 스크롤 + 간격 줄이기 */
+#start { overflow-y: auto; align-items: flex-start; }
+#start .card { margin: auto; }
+@media (max-height: 520px) {
+  .card { padding: 14px 20px; max-width: 420px; }
+  .card .logo { font-size: 30px; }
+  .card h1 { font-size: 20px; margin: 2px 0; }
+  .card p { margin: 2px 0; }
+  .field { margin: 5px 0; }
+  .field input { padding: 6px 10px; }
+  #btn-start { margin-top: 8px; padding: 9px 30px; font-size: 16px; }
+  .card .hint { margin-top: 6px; }
+}
