@@ -44,7 +44,15 @@ export const CONFIG = {
 
   // 여러 명 접속 (Firebase 실시간 데이터베이스). null 이면 혼자 하기만 가능.
   // Firebase 콘솔 → 프로젝트 설정 → 내 앱(웹)의 firebaseConfig 값을 그대로 붙여 넣기
-  firebase: null,
+  firebase: {
+    apiKey: 'AIzaSyCuLf8rMtfLNR8rjgRMTO6_o9dAsbO8_GE',
+    authDomain: 'gym-metaverse.firebaseapp.com',
+    databaseURL: 'https://gym-metaverse-default-rtdb.asia-southeast1.firebasedatabase.app',
+    projectId: 'gym-metaverse',
+    storageBucket: 'gym-metaverse.firebasestorage.app',
+    messagingSenderId: '96668790958',
+    appId: '1:96668790958:web:56f4aff5109b93b3777d3f',
+  },
 
   // 그래픽 (모바일 성능 우선)
   graphics: {
