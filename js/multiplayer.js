@@ -12,6 +12,37 @@ import { RemoteAvatar, encodePlayerState } from './remoteAvatar.js';
 //   - 주인이 나가면 남은 사람이 다시 계산
 // ============================================================
 const SEND_HZ = 10;
+
+function makeRing(color) {
+  const m = new THREE.Mesh(
+    new THREE.RingGeometry(0.45, 0.6, 28).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85, depthWrite: false }),
+  );
+  m.renderOrder = 5;
+  m.visible = false;
+  return m;
+}
+
+function makeArrow() {
+  const c = document.createElement('canvas');
+  c.width = 64;
+  c.height = 64;
+  const g = c.getContext('2d');
+  g.fillStyle = '#ffd23f';
+  g.strokeStyle = '#1f2a5c';
+  g.lineWidth = 5;
+  g.beginPath();
+  g.moveTo(8, 12); g.lineTo(56, 12); g.lineTo(32, 54); g.closePath();
+  g.fill();
+  g.stroke();
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true, sizeAttenuation: false }));
+  s.scale.set(0.07, 0.07, 1);
+  s.renderOrder = 11;
+  s.visible = false;
+  return s;
+}
 const r2 = (v) => Math.round(v * 100) / 100;
 const r1 = (v) => Math.round(v * 10) / 10;
 
@@ -28,6 +59,13 @@ export class Multiplayer {
     this.npcTimer = 0;
     this.cleanTimer = 20;
     this.pullCooldown = new Map();
+    this.incomingPass = null; // 나에게 오는 패스 { idx, foot, until, from }
+
+    // 패스 표시 원: 받을 친구 발밑(노랑), 나에게 오는 패스(내 발밑)
+    this.aimRing = makeRing(0xffd23f);
+    this.myRing = makeRing(0xffd23f);
+    this.aimArrow = makeArrow(); // 받을 친구 머리 위 화살표 (내 아바타에 가려도 보이게)
+    scene.add(this.aimRing, this.myRing, this.aimArrow);
 
     // 공유할 물체: 공·작은 기구 + 밀 수 있는 큰 기구
     this.entries = items.list.map((it, idx) => ({ idx, it, body: it.body, kind: 'item', owner: null, last: '', changedAt: 0, target: null }));
@@ -118,6 +156,43 @@ export class Multiplayer {
     p.flagsLeft--;
     this.room.sendEvent({ k: 'pull', to: p.id });
     return true;
+  }
+
+  // ---------------- 패스 ----------------
+  // 바라보는 방향(fwd)에 있는 친구 중 패스 받을 사람. '패스!' 손든 친구는 더 넓게 찾음
+  passTarget(pos, fwd) {
+    let best = null, bestScore = Infinity;
+    for (const p of this.players.values()) {
+      const dx = p.position.x - pos.x, dz = p.position.z - pos.z;
+      const d = Math.hypot(dx, dz);
+      if (d < 1.2 || d > 18) continue;
+      const ang = Math.acos(THREE.MathUtils.clamp((dx * fwd.x + dz * fwd.z) / d, -1, 1));
+      if (ang > (p.calling ? 0.75 : 0.45)) continue;
+      const score = (ang + 0.05) * d * (p.calling ? 0.5 : 1);
+      if (score < bestScore) { bestScore = score; best = p; }
+    }
+    return best;
+  }
+
+  sendPass(it, to, foot) {
+    const idx = this.items.list.indexOf(it);
+    this.room.sendEvent({ k: 'pass', to: to.id, i: idx, f: foot ? 1 : 0 });
+  }
+
+  // 원 표시 (pos 가 null 이면 숨김)
+  showRing(ring, pos, t) {
+    ring.visible = !!pos;
+    if (!pos) return;
+    ring.position.set(pos.x, pos.y + 0.1, pos.z);
+    const s = 1 + Math.sin(t * 8) * 0.08;
+    ring.scale.set(s, s, s);
+  }
+
+  showArrow(target, t) {
+    this.aimArrow.visible = !!target;
+    if (!target) return;
+    const p = target.position;
+    this.aimArrow.position.set(p.x, p.y + (target.calling ? 2.85 : 2.4) + Math.abs(Math.sin(t * 5)) * 0.15, p.z);
   }
 
   // 연습 친구와 가장 가까운 사람 위치 (방장이 연습 친구를 움직일 때)
@@ -258,6 +333,12 @@ export class Multiplayer {
         } else if (ev.b !== this.me) {
           const p = this.players.get(ev.to);
           if (p) this.effects.sparkle(p.position.x, p.position.y + 0.75, p.position.z);
+        }
+        break;
+      case 'pass':
+        if (ev.to === this.me && ev.b !== this.me) {
+          this.incomingPass = { idx: ev.i, foot: !!ev.f, until: performance.now() + 4000, from: ev.b };
+          this.hud.toast(`${by}의 패스! 🙌`);
         }
         break;
       case 'npcpull':

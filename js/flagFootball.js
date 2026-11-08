@@ -28,7 +28,7 @@ export class FlagBeltBox {
 }
 
 // 말풍선 (캔버스 → 스프라이트)
-function makeBubble() {
+export function makeBubble() {
   const c = document.createElement('canvas');
   c.width = 256;
   c.height = 96;

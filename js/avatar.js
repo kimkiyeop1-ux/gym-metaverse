@@ -182,6 +182,7 @@ export class Avatar {
     this.flagsLeft = 2;      // 차고 있는 플래그 수
     this.regrowTimer = 0;
     this.lastAction = '';
+    this.calling = 0;        // '패스!' 손들기 남은 시간(초)
   }
 
   get wearingFlags() {
@@ -307,6 +308,12 @@ export class Avatar {
       lArm.rotation.x += (-0.2 - lArm.rotation.x) * t;
       rArm.rotation.z += (-1.3 - rArm.rotation.z) * t;
       lArm.rotation.z += (1.3 - lArm.rotation.z) * t;
+    }
+
+    // '패스!' 손들기: 손이 비었을 때 오른팔을 번쩍
+    if (this.calling && !this.holdPose) {
+      rArm.rotation.x += (-3.0 - rArm.rotation.x) * t;
+      rArm.rotation.z += (-0.25 - rArm.rotation.z) * t;
     }
 
     // 힘 모으기: 팔을 뒤로

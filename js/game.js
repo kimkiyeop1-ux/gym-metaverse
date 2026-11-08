@@ -5,7 +5,9 @@ import { JumpRope, HulaHoop } from './activities.js';
 //   E: 잡기·놓기·플래그 뽑기·플래그 착용
 //   Q: 던지기 (꾹 눌러 힘 모으기, 농구공은 골대를 보면 '슛')
 //   F: 차기·치기(라켓)·스파이크·띄우기(킨볼)
-//   R: 토스 (배구공·빅발리볼)
+//   R: 토스 (배구공·빅발리볼), 손이 비면 '패스 해줘' 손들기 (여러 명일 때)
+//   친구 쪽을 보고 있으면 Q '패스'·F '차서 패스'가 친구에게 자동으로 날아가고,
+//   받는 친구는 자동으로 잡음(발 패스는 발 앞에 멈춤)
 const CHARGE_TIME = 1.1;      // 힘이 꽉 차는 시간(초)
 const SHOT_SWEET = [0.62, 0.78]; // 슛 게이지의 초록 구간
 const G = 9.82;
@@ -27,6 +29,9 @@ export class Game {
     this.fwd = new THREE.Vector3();
     this.right = new THREE.Vector3();
     this.shotTarget = null;
+    this.passTarget = null;
+    this.passFlight = null; // 내가 보낸 패스 { it, target, foot, t, T, pinned }
+    this.clock = 0;
   }
 
   get goalScore() {
@@ -59,6 +64,9 @@ export class Game {
     }
 
     this.shotTarget = null;
+    this.passTarget = null;
+    const mpOn = this.mp && this.mp.players.size > 0;
+    if (mpOn) this.passTarget = this.mp.passTarget(pos, this.aimDir(this.fwd));
     if (held) {
       if (held.def.rope) {
         acts.push({ id: 'rope', label: '뛰기', key: 'F', color: 'kick' });
@@ -69,9 +77,18 @@ export class Game {
         acts.push({ id: 'hit', label: '치기', key: 'F', color: 'kick' });
       } else {
         if (held.type === 'basketball') this.shotTarget = this.findShotTarget();
-        acts.push({ id: 'throw', label: this.shotTarget ? '슛' : '던지기', key: 'Q', hold: true, color: 'throw' });
+        // 골대와 친구가 둘 다 앞에 있으면 더 정면에 있는 쪽
+        if (this.shotTarget && this.passTarget) {
+          if (this.angleTo(this.passTarget.position) < this.angleTo(this.shotTarget)) this.shotTarget = null;
+          else this.passTarget = null;
+        }
+        const pt = this.passTarget;
+        if (pt) acts.push({ id: 'pass', label: '패스', key: 'Q', color: 'throw', target: pt });
+        else acts.push({ id: 'throw', label: this.shotTarget ? '슛' : '던지기', key: 'Q', hold: true, color: 'throw' });
         if (held.def.toss) acts.push({ id: 'toss', label: '토스', key: 'R', color: 'toss' });
-        if (held.def.kick) acts.push({ id: 'kick', label: '차기', key: 'F', color: 'kick' });
+        if (held.def.kick) acts.push(pt
+          ? { id: 'kickpass', label: '차서\n패스', key: 'F', color: 'kick', target: pt }
+          : { id: 'kick', label: '차기', key: 'F', color: 'kick' });
       }
       if (!acts.some((x) => x.key === 'E')) acts.push({ id: 'drop', label: '놓기', key: 'E' });
     } else {
@@ -90,10 +107,27 @@ export class Game {
         const kin = items.nearest(pos, 0.8, (it) => it.def.lift);
         const kick = items.nearest(pos, 0.7, (it) => it.def.kick && it.body.position.y < 0.6 + it.def.r);
         if (kin) acts.push({ id: 'lift', label: '띄우기', key: 'F', color: 'kick', target: kin });
+        else if (kick && this.passTarget) acts.push({ id: 'kickpass', label: '차서\n패스', key: 'F', color: 'kick', target: this.passTarget, ball: kick });
         else if (kick) acts.push({ id: 'kick', label: '차기', key: 'F', color: 'kick', target: kick });
       }
+      // 손이 비었을 때: 친구에게 '패스 해줘' 손들기
+      if (mpOn && !acts.some((x) => x.key === 'R')) {
+        acts.push({ id: 'call', label: '패스\n해줘', key: 'R', color: 'toss' });
+      }
     }
-    return acts.slice(0, 4);
+    const out = acts.slice(0, 4);
+    // 받을 친구 표시 원은 지금 패스할 수 있을 때만
+    if (!out.some((x) => x.id === 'pass' || x.id === 'kickpass')) this.passTarget = null;
+    return out;
+  }
+
+  // 카메라가 보는 방향과 어떤 지점 사이의 각도
+  angleTo(q) {
+    const p = this.avatar.position;
+    this.aimDir(this.fwd);
+    const dx = q.x - p.x, dz = q.z - p.z;
+    const d = Math.hypot(dx, dz) || 1;
+    return Math.acos(THREE.MathUtils.clamp((dx * this.fwd.x + dz * this.fwd.z) / d, -1, 1));
   }
 
   findAirBall() {
@@ -127,6 +161,8 @@ export class Game {
   // ---------------- 매 프레임 ----------------
   update(dt) {
     const input = this.input;
+    this.clock += dt;
+    if (this.avatar.calling > 0) this.avatar.calling = Math.max(0, this.avatar.calling - dt);
     this.actions = this.computeActions();
     this.hud.setActions(this.actions);
 
@@ -158,6 +194,12 @@ export class Game {
     }
 
     this.hud.setScore(this.goalScore, this.flagScore);
+
+    if (this.mp) {
+      this.mp.showRing(this.mp.aimRing, this.passTarget && this.passTarget.position, this.clock);
+      this.mp.showArrow(this.passTarget, this.clock);
+      this.mp.showRing(this.mp.myRing, this.mp.incomingPass && this.avatar.position, this.clock);
+    }
 
     this.rope.update(dt);
     if (this.hoop.update(dt)) this.dropHoopAtFeet();
@@ -220,6 +262,12 @@ export class Game {
         this.power = 0;
         return;
       case 'kick': return this.kick(act.target || this.held);
+      case 'pass': return this.passTo(this.held, act.target, false);
+      case 'kickpass': return this.passTo(act.ball || this.held, act.target, true);
+      case 'call':
+        a.calling = 3;
+        this.sound.pop();
+        return;
       case 'lift': return this.lift(act.target);
       case 'toss': return this.toss(act.target || this.held);
       case 'spike': return this.spike(act.target);
@@ -336,8 +384,140 @@ export class Game {
   }
 
   // 물리 계산 후: 들고 있는 물건 위치 맞추기 (드리블 포함)
-  postPhysics() {
+  postPhysics(dt = 1 / 60) {
+    this.steerPass(dt);
+    this.autoCatch();
     this.holdItem();
+  }
+
+  // ---------------- 패스 ----------------
+  // 받을 친구가 공을 잡을 지점 (손: 가슴 앞, 발: 발 앞), 친구가 움직이면 미리 앞쪽을 노림
+  passPoint(target, foot, lead, out) {
+    const p = target.position, v = target.body.velocity;
+    const vx = THREE.MathUtils.clamp(v.x, -6, 6), vz = THREE.MathUtils.clamp(v.z, -6, 6);
+    return out.set(p.x + vx * lead, foot ? p.y + 0.15 : p.y + 1.1, p.z + vz * lead);
+  }
+
+  passTo(it, target, foot) {
+    if (!it || !target) return;
+    this.claim(it);
+    const a = this.avatar;
+    const p = a.position;
+    const r = it.def.r;
+    // 친구 쪽으로 몸 돌리기
+    const dx0 = target.position.x - p.x, dz0 = target.position.z - p.z;
+    const d0 = Math.hypot(dx0, dz0) || 1;
+    a.faceDirection(dx0 / d0, dz0 / d0);
+    const dir = { x: dx0 / d0, z: dz0 / d0 };
+    const start = foot
+      ? this.v.set(p.x + dir.x * 0.5, p.y + r + 0.03, p.z + dir.z * 0.5)
+      : this.v.set(p.x + dir.x * 0.35, p.y + 1.5, p.z + dir.z * 0.35);
+    if (it === this.held) this.clearHeld();
+    a.playAction(foot ? 'kick' : 'throw');
+    if (foot) this.sound.kick(); else this.sound.throw();
+
+    // 날아가는 시간: 멀수록 길게. 움직이는 친구는 그 시간만큼 앞을 노림
+    const T = foot
+      ? THREE.MathUtils.clamp(0.3 + d0 * 0.06, 0.4, 1.3)
+      : THREE.MathUtils.clamp(0.35 + d0 * 0.07, 0.5, 1.5);
+    const tp = this.passPoint(target, foot, T, new THREE.Vector3());
+    const g = this.flightGravity(it, Math.hypot(tp.x - start.x, tp.z - start.z) / T);
+    it.body.position.set(start.x, start.y, start.z);
+    // 발 패스: 낮게 깔리는 땅볼 (살짝만 뜸). 손 패스: 가슴으로 오는 포물선
+    const vy = foot ? 1.2 : (tp.y - start.y + 0.5 * g * T * T) / T;
+    this.items.launch(it, (tp.x - start.x) / T, vy, (tp.z - start.z) / T, it.def.glide ? 25 : 0);
+    this.passFlight = { it, target, foot, t: 0, T, pinned: 0, vh: Math.hypot(tp.x - start.x, tp.z - start.z) / T };
+    this.mp.sendPass(it, target, foot);
+  }
+
+  // 원반은 빠를수록 뜨는 힘이 커서 중력이 약하게 작용함 (items.js 와 같은 식)
+  flightGravity(it, vh) {
+    if (it.def.glide) return G * (1 - Math.min(0.9, (vh / 10) ** 2));
+    return G;
+  }
+
+  // 내가 보낸 패스: 친구에게 닿도록 날아가는 동안 살짝 방향을 맞춰 줌
+  steerPass(dt) {
+    const f = this.passFlight;
+    if (!f) return;
+    const it = f.it, b = it.body;
+    f.t += dt;
+    // 친구가 잡았거나(주인이 바뀜), 다른 사람이 들었거나, 시간이 지나면 끝
+    const gone = !this.mp.players.has(f.target.id);
+    if (it.held || it.remote || gone || f.t > f.T + 2) {
+      this.passFlight = null;
+      return;
+    }
+    const tp = this.passPoint(f.target, f.foot, 0, this.v);
+    const dx = tp.x - b.position.x, dy = tp.y - b.position.y, dz = tp.z - b.position.z;
+    const dist = Math.hypot(dx, dy * (f.foot ? 0.3 : 1), dz);
+
+    // 친구 손(발) 앞에 도착: 친구가 잡을 때까지 그 자리에 둠 (최대 1.5초)
+    if (f.pinned || dist < (f.foot ? 0.6 : 0.75)) {
+      f.pinned += dt;
+      if (f.pinned > 1.5) { this.passFlight = null; return; }
+      if (f.foot) {
+        b.velocity.set(0, Math.min(0, b.velocity.y), 0);
+        b.angularVelocity.set(0, 0, 0);
+      } else {
+        f.target.handPosition(this.v, true);
+        b.position.set(this.v.x, this.v.y, this.v.z);
+        b.velocity.set(0, 0, 0);
+        b.angularVelocity.set(0, 0, 0);
+        it.mesh.position.copy(this.v);
+        it.flying = false;
+      }
+      return;
+    }
+    if (f.t > f.T + 0.4) return; // 많이 빗나간 공은 그냥 둠
+    const Tr = Math.max(0.25, f.T - f.t);
+    const v = b.velocity;
+    const k = Math.min(1, 5 * dt);
+    // 원하는 수평 속도 (처음 속도보다 너무 빨라지지 않게)
+    let wx = dx / Tr, wz = dz / Tr;
+    const wh = Math.hypot(wx, wz), cap = f.vh * 1.2 + 0.5;
+    if (wh > cap) { wx *= cap / wh; wz *= cap / wh; }
+    v.x += (wx - v.x) * k;
+    v.z += (wz - v.z) * k;
+    if (!f.foot) {
+      const g = this.flightGravity(it, Math.hypot(v.x, v.z));
+      v.y += ((dy + 0.5 * g * Tr * Tr) / Tr - v.y) * k;
+    }
+  }
+
+  // 나에게 온 패스를 자동으로 받기
+  autoCatch() {
+    const mp = this.mp;
+    const ip = mp && mp.incomingPass;
+    if (!ip) return;
+    const it = this.items.list[ip.idx];
+    if (!it || performance.now() > ip.until || it === this.held || (it.remoteHolder && it.remoteHolder !== ip.from)) {
+      mp.incomingPass = null;
+      return;
+    }
+    if (this.movementLocked) return;
+    const p = this.avatar.position, b = it.body.position;
+    if (ip.foot) {
+      const d = Math.hypot(b.x - p.x, b.z - p.z);
+      if (d > 1.3 || b.y > p.y + 1.8) return;
+      // 트래핑: 발 앞에 멈춤
+      this.claim(it);
+      this.avatar.forward(this.fwd);
+      it.body.position.set(p.x + this.fwd.x * (0.45 + it.def.r), p.y + it.def.r + 0.02, p.z + this.fwd.z * (0.45 + it.def.r));
+      it.body.velocity.set(0, 0, 0);
+      it.body.angularVelocity.set(0, 0, 0);
+      this.hud.popup('트래핑! ⚽');
+    } else {
+      if (this.held || !it.def.hold) return;
+      const d = Math.hypot(b.x - p.x, b.y - (p.y + 1.1), b.z - p.z);
+      if (d > 1.6) return;
+      this.grab(it);
+      this.avatar.playAction('toss');
+      this.hud.popup('나이스 캐치! 🙌');
+    }
+    this.sound.pop();
+    this.avatar.calling = 0;
+    mp.incomingPass = null;
   }
 
   holdItem() {
