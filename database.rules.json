@@ -1,0 +1,38 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "rooms": {
+      "$room": {
+        ".read": "auth != null && $room.length <= 12",
+        "p": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid",
+            ".validate": "newData.hasChildren(['n']) && newData.child('n').isString() && newData.child('n').val().length >= 1 && newData.child('n').val().length <= 8",
+            "s": { ".validate": "newData.isString() && newData.val().length <= 200" },
+            "t": { ".validate": "newData.isNumber()" },
+            "n": { ".validate": true },
+            "$other": { ".validate": false }
+          }
+        },
+        "i": {
+          "$idx": {
+            ".write": "auth != null && root.child('rooms').child($room).child('p').child(auth.uid).exists()",
+            ".validate": "newData.hasChildren(['o', 's']) && newData.child('s').isString() && newData.child('s').val().length <= 200 && newData.child('o').isString() && (newData.child('o').val() === '' || newData.child('o').val() === auth.uid)"
+          }
+        },
+        "npc": {
+          ".write": "auth != null && root.child('rooms').child($room).child('p').child(auth.uid).exists()",
+          ".validate": "newData.child('o').val() === auth.uid && newData.child('s').isString() && newData.child('s').val().length <= 100"
+        },
+        "e": {
+          ".indexOn": ["t"],
+          "$ev": {
+            ".write": "auth != null && root.child('rooms').child($room).child('p').child(auth.uid).exists()",
+            ".validate": "!newData.exists() || (newData.child('b').val() === auth.uid && newData.child('k').isString() && newData.child('t').isNumber())"
+          }
+        }
+      }
+    }
+  }
+}

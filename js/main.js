@@ -15,6 +15,8 @@ import { VolleyballFixedNet, ChukballFrame } from './equipment.js';
 import { buildStorageArea, slotX, STORAGE_Z, NameTag } from './storageArea.js';
 import { Sound } from './sound.js';
 import { Effects } from './effects.js';
+import { FirebaseRoom, LocalRoom, cleanNickname, cleanRoomCode } from './net.js';
+import { Multiplayer } from './multiplayer.js';
 
 // ---------- 학교명 표시 ----------
 const title = `${CONFIG.schoolName} ${CONFIG.appName}`;
@@ -77,10 +79,12 @@ const input = new Input(canvas);
 
 // ---------- 2단계: 용기구 ----------
 const hud = new Hud();
+let mp = null; // 여러 명 접속 (입장할 때 연결)
 const sound = new Sound();
 const effects = new Effects(scene);
 const items = new Items(scene, physics, gym, {
   onGoal: (hoop) => {
+    if (mp) { mp.sendGoal(hoop); return; } // 여러 명: 모두에게 알림 (알림으로 효과 표시)
     hud.popup('골! 🏀');
     sound.goal();
     effects.confetti(hoop.x, hoop.y + 0.2, hoop.z);
@@ -223,9 +227,28 @@ soundBtn.addEventListener('click', () => {
 });
 updateSoundBtn();
 
-document.getElementById('btn-start').addEventListener('click', () => {
-  sound.unlock();
-  if (input.isTouch) tryLandscape();
+// ---------- 입장 (혼자 / 여러 명) ----------
+// 여러 명: config.js 에 firebase 설정이 있으면 사용. 주소에 ?net=local 이면 같은 브라우저 탭끼리 테스트
+const netMode = new URLSearchParams(location.search).get('net') === 'local' ? 'local'
+  : CONFIG.firebase ? 'firebase' : null;
+const startBtn = document.getElementById('btn-start');
+const soloBtn = document.getElementById('btn-solo');
+const nickEl = document.getElementById('nickname');
+const roomEl = document.getElementById('roomcode');
+const errEl = document.getElementById('join-error');
+if (netMode) {
+  document.getElementById('join-fields').hidden = false;
+  soloBtn.hidden = false;
+  nickEl.value = storage.get('nickname', '');
+  roomEl.value = storage.get('room', '');
+}
+
+function showJoinError(msg) {
+  errEl.textContent = msg;
+  errEl.hidden = !msg;
+}
+
+function enterGame() {
   startScreen.classList.add('hidden');
   document.body.classList.add('playing');
   running = true;
@@ -234,7 +257,62 @@ document.getElementById('btn-start').addEventListener('click', () => {
     storage.set('help_seen', true);
     setTimeout(() => document.getElementById('help').classList.remove('show'), 7000);
   }
+}
+
+const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
+
+async function joinRoom() {
+  const name = cleanNickname(nickEl.value);
+  if (!name || name.length < 2) {
+    showJoinError('닉네임을 2~8글자로 넣어 주세요 (바르고 고운 말로!)');
+    nickEl.focus();
+    return;
+  }
+  const room = cleanRoomCode(roomEl.value);
+  storage.set('nickname', name);
+  storage.set('room', roomEl.value.trim());
+  showJoinError('');
+  startBtn.disabled = true;
+  startBtn.textContent = '연결 중...';
+  try {
+    const conn = netMode === 'local' ? new LocalRoom() : new FirebaseRoom(CONFIG.firebase);
+    const res = await withTimeout(conn.join(room, name), 12000);
+    if (!res.ok) {
+      showJoinError(res.reason === 'full' ? '방이 가득 찼어요 (최대 30명). 다른 방 코드를 써 주세요.' : '들어갈 수 없어요.');
+      return;
+    }
+    mp = new Multiplayer({
+      room: conn, scene, physics, avatar, items, game, npc, hud, sound, effects,
+      equipment: [badmintonNet, chukball],
+    });
+    game.mp = mp;
+    window.__gym.mp = mp;
+    hud.setPlayers(mp.playerList());
+    hud.toast(`'${room}' 방에 들어왔어요 · ${name}`);
+    enterGame();
+  } catch (e) {
+    console.warn('join failed', e);
+    showJoinError('연결하지 못했어요. 인터넷을 확인하거나 [혼자 연습하기]를 눌러 주세요.');
+  } finally {
+    startBtn.disabled = false;
+    startBtn.textContent = '입장하기';
+  }
+}
+
+startBtn.addEventListener('click', () => {
+  sound.unlock();
+  if (input.isTouch) tryLandscape(); // 터치한 순간에 해야 함
+  if (netMode) joinRoom();
+  else enterGame();
 });
+soloBtn.addEventListener('click', () => {
+  sound.unlock();
+  if (input.isTouch) tryLandscape();
+  enterGame();
+});
+for (const el of [nickEl, roomEl]) {
+  el.addEventListener('keydown', (e) => { if (e.key === 'Enter') startBtn.click(); });
+}
 document.getElementById('btn-help').addEventListener('click', () => {
   document.getElementById('help').classList.toggle('show');
 });
@@ -278,7 +356,8 @@ function frame() {
   moveDir.set(0, 0, 0).addScaledVector(fwd, m.y).addScaledVector(right, m.x);
   const jump = running && input.consume('jump');
 
-  npc.update(dt, avatar.position);
+  // 연습 친구: 혼자일 때·방장일 때만 직접 움직임 (나머지는 방장 화면을 따라감)
+  if (!mp || mp.isHost) npc.update(dt, mp ? mp.nearestPersonTo(npc.position) : avatar.position);
   avatar.applyInput(dt, moveDir, jump);
   physics.world.step(PHYSICS_STEP, dt, 12);
   avatar.afterPhysics(dt);
@@ -288,6 +367,7 @@ function frame() {
   chukball.update();
   effects.update(dt);
   game.postPhysics();
+  if (mp) mp.update(dt);
 
   // 앞으로 걸을 때는 카메라가 천천히 등 뒤로
   if (!input.dragging && m.y > 0.3) camCtl.followHeading(avatar.heading, m.y, dt);

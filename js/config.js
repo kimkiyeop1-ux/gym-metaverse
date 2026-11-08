@@ -42,6 +42,10 @@ export const CONFIG = {
     volleyNetHeight: 2.3, // 배구 네트 높이 (중학교 남자 2.30m, 여자 2.15m)
   },
 
+  // 여러 명 접속 (Firebase 실시간 데이터베이스). null 이면 혼자 하기만 가능.
+  // Firebase 콘솔 → 프로젝트 설정 → 내 앱(웹)의 firebaseConfig 값을 그대로 붙여 넣기
+  firebase: null,
+
   // 그래픽 (모바일 성능 우선)
   graphics: {
     maxPixelRatio: 1.5,

@@ -179,6 +179,9 @@ export class Avatar {
     this.activity = null;    // 'rope' | 'hoop' (줄넘기·훌라후프 하는 중)
     this.activityPhase = 0;  // 줄 각도 / 후프 각도
     this.hopY = 0;           // 줄넘기 점프 높이 (화면용)
+    this.flagsLeft = 2;      // 차고 있는 플래그 수
+    this.regrowTimer = 0;
+    this.lastAction = '';
   }
 
   get wearingFlags() {
@@ -186,7 +189,17 @@ export class Avatar {
   }
   setWearingFlags(on) {
     this.parts.belt.visible = on;
+    this.flagsLeft = 2;
+    this.regrowTimer = 0;
     for (const f of this.parts.flags) f.visible = true;
+  }
+
+  // 친구에게 플래그를 뺏김 (2개 다 뺏기면 3초 뒤 다시 생김)
+  loseFlag() {
+    if (!this.wearingFlags || this.flagsLeft <= 0) return;
+    this.flagsLeft--;
+    this.parts.flags[this.flagsLeft].visible = false;
+    if (this.flagsLeft === 0) this.regrowTimer = 3;
   }
 
   playAction(name) {
@@ -251,6 +264,11 @@ export class Avatar {
 
     animatePerson(this.parts, this.anim, dt);
     this.animateActions(dt);
+
+    if (this.regrowTimer > 0) {
+      this.regrowTimer -= dt;
+      if (this.regrowTimer <= 0) this.setWearingFlags(this.wearingFlags);
+    }
   }
 
   // 들기 자세·동작 애니메이션 (걷기 애니메이션 위에 덮어씀)
