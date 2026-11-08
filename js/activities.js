@@ -96,6 +96,7 @@ export class JumpRope {
       if (wrapped < bottom && wrapped + this.speed * dt >= bottom) {
         if (a.hopY > 0.05) {
           this.count++;
+          if (this.sound) this.sound.rope();
           this.speed = Math.min((Math.PI * 2) / 0.7, this.speed * 1.01);
           if (this.count > this.best) {
             this.best = this.count;
@@ -119,6 +120,7 @@ export class JumpRope {
   }
 
   fail() {
+    if (this.sound) this.sound.fail();
     this.spinning = false;
     this.avatar.activity = null;
     this.avatar.hopY = 0;
@@ -229,6 +231,7 @@ export class HulaHoop {
       it.mesh.quaternion.setFromEuler(new THREE.Euler(Math.sin(this.angle) * 0.12, 0, Math.cos(this.angle) * 0.12));
       if (this.energy <= 0) {
         dropped = true;
+        if (this.sound) this.sound.fail();
         this.message = `떨어졌어요! ${this.rounds}바퀴`;
         this.msgTimer = 2.5;
       }

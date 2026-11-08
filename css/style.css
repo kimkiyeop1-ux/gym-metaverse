@@ -325,7 +325,8 @@ body:not(.touch) .act-btn.slot { display: none; }
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
 }
 .card .logo { font-size: 48px; }
-.card h1 { margin: 8px 0 6px; font-size: 24px; }
+.card h1 { margin: 8px 0 6px; font-size: 24px; word-break: keep-all; }
+.card p { word-break: keep-all; }
 .card p { margin: 6px 0; font-size: 14px; color: #44507a; }
 .card .hint { font-size: 12px; color: #8088a8; margin-top: 14px; }
 #btn-start {
@@ -403,3 +404,17 @@ body:not(.touch) .act-btn.slot { display: none; }
 #counter.show { display: block; }
 #counter .big { font-size: 30px; font-weight: 900; line-height: 1.1; color: #ffd23f; }
 #counter .small { font-size: 12px; opacity: 0.9; }
+
+#btn-install {
+  display: block;
+  margin: 12px auto 0;
+  padding: 8px 18px;
+  font-size: 14px;
+  font-weight: 700;
+  border: 2px solid #1f2a5c;
+  border-radius: 999px;
+  background: #fff;
+  color: #1f2a5c;
+  cursor: pointer;
+}
+#btn-install[hidden] { display: none; }

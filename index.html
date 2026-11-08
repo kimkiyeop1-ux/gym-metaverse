@@ -4,6 +4,14 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#1f2a5c" />
+  <!-- 홈 화면 추가 (앱처럼 실행) -->
+  <link rel="manifest" href="manifest.webmanifest" id="manifest-link" />
+  <link rel="icon" type="image/png" href="icons/favicon-32.png" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="가상 체육관" id="apple-title" />
   <title>가상 체육관</title>
   <!--
     ★ 업데이트할 때마다 아래 VERSION 을 바꾸면, 휴대폰이 예전 파일(캐시) 대신 새 파일을 받습니다.
@@ -11,10 +19,10 @@
   -->
   <script>
     (function () {
-      var VERSION = '3-3';
+      var VERSION = '4-1';
       var MODULES = ['main', 'config', 'storage', 'physics', 'gym', 'courtLines',
                      'avatar', 'camera', 'input', 'joystick', 'items', 'badminton',
-                     'flagFootball', 'game', 'hud', 'equipment', 'activities', 'storageArea'];
+                     'flagFootball', 'game', 'hud', 'equipment', 'activities', 'storageArea', 'sound', 'effects'];
       window.GYM_VERSION = VERSION;
       // 라이브러리는 저장소 안(js/vendor)에 포함: 외부 서버 없이 동작
       var imports = {
@@ -30,6 +38,22 @@
       css.rel = 'stylesheet';
       css.href = 'css/style.css?v=' + VERSION;
       document.head.appendChild(css);
+      // 서비스 워커 (홈 화면 앱·오프라인). 버전이 바뀌면 새로 설치되고 예전 저장본은 지워짐
+      if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register('sw.js?v=' + VERSION, { updateViaCache: 'none' }).catch(function () {});
+          // 처음 방문 때 이미 받은 파일들도 이 앱 저장본(gym-metaverse-버전)에 넣어 둠 → 다음엔 인터넷 없이도 열림
+          if (window.caches && performance.getEntriesByType) {
+            var base = new URL('./', location.href).href;
+            var urls = performance.getEntriesByType('resource')
+              .map(function (e) { return e.name; })
+              .filter(function (u) { return u.indexOf(base) === 0; });
+            caches.open('gym-metaverse-' + VERSION).then(function (c) {
+              urls.forEach(function (u) { c.match(u).then(function (hit) { if (!hit) c.add(u).catch(function () {}); }); });
+            }).catch(function () {});
+          }
+        });
+      }
     })();
   </script>
 </head>
@@ -41,6 +65,7 @@
     <div id="title" data-school-title>가상 체육관</div>
     <div class="hud-right">
       <button id="btn-reset" class="pill-btn" aria-label="공 정리">🧺 정리</button>
+      <button id="btn-sound" class="round-btn" aria-label="소리 끄기">🔊</button>
       <button id="btn-orient" class="pill-btn touch-only" aria-label="가로/세로 전환">📱 가로로</button>
       <button id="btn-help" class="round-btn" aria-label="조작 방법">?</button>
     </div>
@@ -89,6 +114,7 @@
       <h1 data-school-title>가상 체육관</h1>
       <p>아바타로 체육관을 자유롭게 돌아다녀 보세요!</p>
       <button id="btn-start">입장하기</button>
+      <button id="btn-install" hidden>📲 홈 화면에 추가</button>
       <p class="hint pc-only">WASD 이동 · 스페이스 점프 · 드래그 시점 · 휠 확대</p>
       <p class="hint touch-only">왼쪽 조이스틱 이동 · 오른쪽 드래그 시점</p>
       <p class="version" id="version"></p>

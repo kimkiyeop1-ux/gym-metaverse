@@ -217,7 +217,7 @@ function makeShape(type, def) {
 
 // ============================================================
 export class Items {
-  constructor(scene, physics, gym, { onGoal } = {}) {
+  constructor(scene, physics, gym, { onGoal, onImpact } = {}) {
     this.scene = scene;
     this.physics = physics;
     this.hoops = gym.hoops;
@@ -260,6 +260,17 @@ export class Items {
         restYaw: 0,
       };
       body.userData = { item };
+      // 부딪힐 때 소리 (너무 자주 나지 않게 0.08초 간격)
+      let lastHit = 0;
+      body.addEventListener('collide', (e) => {
+        if (!onImpact || item.held) return;
+        const v = Math.abs(e.contact.getImpactVelocityAlongNormal());
+        const now = performance.now();
+        if (v > 1.0 && now - lastHit > 80) {
+          lastHit = now;
+          onImpact(item, v);
+        }
+      });
       if (def.noPerson) body.collisionFilterMask = 1;
       this.list.push(item);
     }

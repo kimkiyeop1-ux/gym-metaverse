@@ -13,11 +13,40 @@ import { Hud } from './hud.js';
 import { Game } from './game.js';
 import { VolleyballFixedNet, ChukballFrame } from './equipment.js';
 import { buildStorageArea, slotX, STORAGE_Z, NameTag } from './storageArea.js';
+import { Sound } from './sound.js';
+import { Effects } from './effects.js';
 
 // ---------- 학교명 표시 ----------
 const title = `${CONFIG.schoolName} ${CONFIG.appName}`;
 document.title = title;
 for (const el of document.querySelectorAll('[data-school-title]')) el.textContent = title;
+
+// 홈 화면 앱 이름에도 학교명 넣기 (config.js 한 곳에서 관리)
+document.getElementById('apple-title').setAttribute('content', `${CONFIG.schoolName} 체육관`);
+try {
+  const base = new URL('./', location.href).href;
+  const manifest = {
+    name: title,
+    short_name: `${CONFIG.schoolName} 체육관`,
+    description: `${CONFIG.schoolName} 체육관을 3D로 재현한 가상 체육관`,
+    lang: 'ko',
+    start_url: base,
+    scope: base,
+    display: 'fullscreen',
+    orientation: 'landscape',
+    background_color: '#1f2a5c',
+    theme_color: '#1f2a5c',
+    icons: [
+      { src: base + 'icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+      { src: base + 'icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+      { src: base + 'icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+    ],
+  };
+  document.getElementById('manifest-link').href =
+    'data:application/manifest+json,' + encodeURIComponent(JSON.stringify(manifest));
+} catch {
+  /* 실패하면 기본 manifest.webmanifest 사용 */
+}
 
 // ---------- 렌더러 (모바일 성능 우선: 그림자 끔, 해상도 배율 제한) ----------
 const canvas = document.getElementById('scene');
@@ -48,14 +77,26 @@ const input = new Input(canvas);
 
 // ---------- 2단계: 용기구 ----------
 const hud = new Hud();
+const sound = new Sound();
+const effects = new Effects(scene);
 const items = new Items(scene, physics, gym, {
-  onGoal: () => hud.popup('골! 🏀'),
+  onGoal: (hoop) => {
+    hud.popup('골! 🏀');
+    sound.goal();
+    effects.confetti(hoop.x, hoop.y + 0.2, hoop.z);
+  },
+  onImpact: (it, v) => sound.impact(it.type, v),
 });
 const badmintonNet = new BadmintonNet(scene, physics, 9, 0); // 오른쪽 배드민턴 코트
 
 // ---------- 3단계: 고정·동작 기구 ----------
 new VolleyballFixedNet(scene, physics);                       // 가운데 배구 코트 (고정)
 const chukball = new ChukballFrame(scene, physics, -9, 7, +1); // +x 쪽을 바라봄
+chukball.onBounce = () => {
+  sound.chuk();
+  const p = chukball.body.position;
+  effects.ring(p.x + chukball.normal.x * 0.05, 0.75, p.z, chukball.normal);
+};
 buildStorageArea(scene);
 const beltBox = new FlagBeltBox(scene, physics, slotX('flagbelt'), STORAGE_Z);
 const npc = new PracticeFriend(scene, physics, 8, -4, { minX: -15.5, maxX: 16.3, minZ: -8.6, maxZ: 10.4 });
@@ -63,6 +104,8 @@ const game = new Game({
   avatar, items, camCtl, input, hud, npc, beltBox,
   resettables: [badmintonNet, chukball],
   nameTag: new NameTag(scene),
+  sound,
+  effects,
   // 가까이 가면 이름이 뜨는 큰 기구 (위치는 매 프레임 읽음)
   landmarks: [
     { name: '🚩 플래그 벨트', pos: () => beltBox.pos, y: 1.0 },
@@ -139,7 +182,49 @@ document.getElementById('btn-portrait').addEventListener('click', () => {
   document.body.classList.add('portrait-ok');
 });
 
+// ---------- 홈 화면에 추가 ----------
+const installBtn = document.getElementById('btn-install');
+const isStandalone = window.matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches
+  || window.navigator.standalone === true;
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+  || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+let installEvent = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  // 안드로이드 크롬 등: 설치 창을 버튼으로 띄움
+  e.preventDefault();
+  installEvent = e;
+  if (!isStandalone) installBtn.hidden = false;
+});
+window.addEventListener('appinstalled', () => {
+  installBtn.hidden = true;
+  toast('홈 화면에 추가됐어요! 아이콘으로 바로 들어올 수 있어요.');
+});
+if (isIOS && !isStandalone) installBtn.hidden = false;
+installBtn.addEventListener('click', async () => {
+  if (installEvent) {
+    installEvent.prompt();
+    await installEvent.userChoice.catch(() => null);
+    installEvent = null;
+    installBtn.hidden = true;
+  } else if (isIOS) {
+    toast('사파리 아래쪽 공유 버튼(□↑)을 누르고 "홈 화면에 추가"를 고르세요.');
+  }
+});
+
+// 소리 켜기/끄기 버튼
+const soundBtn = document.getElementById('btn-sound');
+function updateSoundBtn() {
+  soundBtn.textContent = sound.enabled ? '🔊' : '🔇';
+  soundBtn.setAttribute('aria-label', sound.enabled ? '소리 끄기' : '소리 켜기');
+}
+soundBtn.addEventListener('click', () => {
+  sound.setEnabled(!sound.enabled);
+  updateSoundBtn();
+});
+updateSoundBtn();
+
 document.getElementById('btn-start').addEventListener('click', () => {
+  sound.unlock();
   if (input.isTouch) tryLandscape();
   startScreen.classList.add('hidden');
   document.body.classList.add('playing');
@@ -201,6 +286,7 @@ function frame() {
   items.update(dt);
   badmintonNet.update();
   chukball.update();
+  effects.update(dt);
   game.postPhysics();
 
   // 앞으로 걸을 때는 카메라가 천천히 등 뒤로

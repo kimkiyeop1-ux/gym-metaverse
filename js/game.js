@@ -11,11 +11,13 @@ const SHOT_SWEET = [0.62, 0.78]; // 슛 게이지의 초록 구간
 const G = 9.82;
 
 export class Game {
-  constructor({ avatar, items, camCtl, input, hud, npc, beltBox, resettables, nameTag, landmarks }) {
-    Object.assign(this, { avatar, items, camCtl, input, hud, npc, beltBox, nameTag, landmarks });
+  constructor({ avatar, items, camCtl, input, hud, npc, beltBox, resettables, nameTag, landmarks, sound, effects }) {
+    Object.assign(this, { avatar, items, camCtl, input, hud, npc, beltBox, nameTag, landmarks, sound, effects });
     this.resettables = resettables; // 정리 버튼으로 제자리에 돌릴 기구들
     this.rope = new JumpRope(items.scene, avatar, hud);
     this.hoop = new HulaHoop(avatar, items, hud);
+    this.rope.sound = sound;
+    this.hoop.sound = sound;
     this.held = null;
     this.charging = false;
     this.power = 0;
@@ -227,6 +229,9 @@ export class Game {
         if (this.npc.pullFlag()) {
           this.flagScore++;
           this.hud.popup('🚩 플래그!');
+          this.sound.flag();
+          const q = this.npc.position;
+          this.effects.sparkle(q.x, q.y + 0.75, q.z);
         }
         return;
       case 'wear':
@@ -345,6 +350,7 @@ export class Game {
     const a = this.avatar;
     const dir = this.faceAim();
     a.playAction('throw');
+    this.sound.throw();
     const start = this.v.set(a.position.x + dir.x * 0.3, a.position.y + 1.9 + it.def.r, a.position.z + dir.z * 0.3);
     it.body.position.set(start.x, start.y, start.z);
 
@@ -390,6 +396,7 @@ export class Game {
     const a = this.avatar;
     const dir = this.faceAim();
     a.playAction('kick');
+    this.sound.kick();
     if (it === this.held) {
       this.clearHeld();
       it.body.position.set(a.position.x + dir.x * 0.4, a.position.y + 0.35, a.position.z + dir.z * 0.4);
@@ -401,6 +408,7 @@ export class Game {
   lift(it) {
     const dir = this.faceAim();
     this.avatar.playAction('toss');
+    this.sound.kick();
     const [fwd, up] = it.def.lift;
     this.items.launch(it, dir.x * fwd, up, dir.z * fwd);
   }
@@ -410,6 +418,7 @@ export class Game {
     const a = this.avatar;
     const dir = this.faceAim();
     a.playAction('toss');
+    this.sound.pop();
     if (it === this.held) {
       this.clearHeld();
       it.body.position.set(a.position.x + dir.x * 0.35, a.position.y + 1.7 + it.def.r, a.position.z + dir.z * 0.35);
@@ -422,6 +431,7 @@ export class Game {
     if (!it) return;
     const dir = this.faceAim();
     this.avatar.playAction('swing');
+    this.sound.kick();
     const big = it.type === 'bigvolley';
     this.items.launch(it, dir.x * (big ? 8 : 15), big ? -1.5 : -4, dir.z * (big ? 8 : 15));
   }
@@ -430,6 +440,7 @@ export class Game {
     const a = this.avatar;
     const dir = this.faceAim();
     a.playAction('swing');
+    this.sound.throw();
     const p = a.position;
     // 라켓 닿는 범위의 셔틀콕
     for (const it of this.items.list) {
@@ -468,5 +479,6 @@ export class Game {
     this.items.reset();
     for (const r of this.resettables) r.reset();
     this.hud.popup('정리 완료!');
+    this.sound.whistle();
   }
 }
