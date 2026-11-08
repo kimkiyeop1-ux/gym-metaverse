@@ -41,8 +41,9 @@ self.addEventListener('fetch', (event) => {
   const isPage = req.mode === 'navigate' || url.pathname.endsWith('/') || url.pathname.endsWith('.html');
   if (isPage || url.pathname.endsWith('.webmanifest')) {
     // 인터넷 먼저 → 실패하면 저장본
+    // cache:'no-cache' = 브라우저 임시 저장본(최대 10분)도 건너뛰고 서버에 새 버전이 있는지 꼭 확인
     event.respondWith(
-      fetch(req)
+      fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' })
         .then((res) => {
           if (res.ok) {
             const copy = res.clone();
