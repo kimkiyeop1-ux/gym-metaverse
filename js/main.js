@@ -48,19 +48,57 @@ let fpsFrames = 0, fpsTime = 0;
 // ---------- 시작 화면 ----------
 const startScreen = document.getElementById('start');
 let running = false;
-// 휴대폰: 입장할 때 전체화면 + 가로 고정 시도 (안드로이드 크롬 등에서 동작, 아이폰은 미지원)
-async function tryLandscape() {
+// ---------- 가로/세로 전환 ----------
+// 안드로이드 크롬 등: 전체화면 + 화면 방향 고정으로 전환
+// 아이폰 등 미지원 브라우저: 직접 돌려 달라는 안내 표시
+const canLock = !!(document.documentElement.requestFullscreen && screen.orientation && screen.orientation.lock);
+const portraitMQ = window.matchMedia('(orientation: portrait)');
+const orientBtn = document.getElementById('btn-orient');
+const toastEl = document.getElementById('toast');
+let toastTimer = 0;
+
+function toast(msg) {
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), 3000);
+}
+
+async function lockOrientation(mode) {
   try {
     const el = document.documentElement;
-    if (!document.fullscreenElement && el.requestFullscreen) await el.requestFullscreen({ navigationUI: 'hide' });
-    if (screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape');
+    if (!document.fullscreenElement) await el.requestFullscreen({ navigationUI: 'hide' });
+    await screen.orientation.lock(mode);
+    return true;
   } catch {
-    /* 지원하지 않으면 세로 안내 화면이 대신 나옴 */
+    return false;
   }
 }
+
+function tryLandscape() {
+  if (canLock) return lockOrientation('landscape');
+  return Promise.resolve(false);
+}
+
+async function toggleOrientation() {
+  const toLandscape = portraitMQ.matches;
+  if (!toLandscape) document.body.classList.add('portrait-ok'); // 세로를 직접 고름 → 안내 화면 안 띄움
+  const ok = canLock && (await lockOrientation(toLandscape ? 'landscape' : 'portrait'));
+  if (!ok) {
+    toast(toLandscape
+      ? '이 브라우저는 자동 전환을 지원하지 않아요. 휴대폰을 직접 가로로 돌려 주세요 (화면 자동 회전 켜기).'
+      : '휴대폰을 직접 세로로 돌려 주세요.');
+  }
+}
+
+function updateOrientBtn() {
+  orientBtn.textContent = portraitMQ.matches ? '📱 가로로' : '📱 세로로';
+}
+portraitMQ.addEventListener('change', updateOrientBtn);
+updateOrientBtn();
+orientBtn.addEventListener('click', toggleOrientation);
+
 document.getElementById('version').textContent = `버전 ${CONFIG.version}`;
-// 전체화면·가로 고정을 지원하지 않는 브라우저(아이폰 등)에서는 전환 버튼 숨김
-const canLock = !!(document.documentElement.requestFullscreen && screen.orientation && screen.orientation.lock);
 if (!canLock) document.getElementById('btn-landscape').hidden = true;
 document.getElementById('btn-landscape').addEventListener('click', tryLandscape);
 document.getElementById('btn-portrait').addEventListener('click', () => {

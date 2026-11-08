@@ -65,6 +65,39 @@ body.touch .pc-only { display: none !important; }
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
   cursor: pointer;
 }
+.hud-right { display: flex; gap: 8px; align-items: center; }
+.pill-btn {
+  pointer-events: auto;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: none;
+  background: rgba(255, 255, 255, 0.9);
+  color: #1f2a5c;
+  font-size: 14px;
+  font-weight: 800;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  white-space: nowrap;
+}
+body.touch .pill-btn.touch-only { display: inline-block !important; }
+#toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(30px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  background: rgba(31, 42, 92, 0.92);
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: 12px;
+  font-size: 14px;
+  text-align: center;
+  max-width: calc(100% - 32px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+  z-index: 20;
+}
+#toast.show { opacity: 1; }
 #fps {
   position: fixed;
   top: calc(52px + env(safe-area-inset-top));
