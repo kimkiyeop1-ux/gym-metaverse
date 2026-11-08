@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { CONFIG } from './config.js';
+import { storagePlacement } from './storageArea.js';
 
 // ============================================================
 //  공·작은 용기구 정의
@@ -41,22 +42,8 @@ const SCALED = ['basketball', 'futsal', 'football', 'dodgeball', 'volleyball', '
 for (const k of SCALED) ITEM_DEFS[k].r *= CONFIG.equipment.ballScale;
 const FRISBEE_H = 0.03 * CONFIG.equipment.ballScale;
 
-// 처음 놓이는 자리 (공 바구니 옆, -z 벽 쪽)
-const PLACEMENT = [
-  ['basketball', -3.4, -9.4],
-  ['basketball', -2.8, -9.4],
-  ['futsal', -2.0, -9.4],
-  ['dodgeball', -1.3, -9.4],
-  ['volleyball', -0.6, -9.4],
-  ['football', 0.1, -9.4],
-  ['frisbee', 0.8, -9.4],
-  ['bigvolley', 2.0, -9.2],
-  ['kinball', 6.0, -8.4],
-  ['racket', 13.1, 1.4],
-  ['shuttle', 13.4, 1.9],
-  ['jumprope', -4.6, -9.5],
-  ['hulahoop', -6.0, -9.3],
-];
+// 처음 놓이는 자리: 보관 구역 칸 (storageArea.js)
+const PLACEMENT = storagePlacement();
 
 // ---------- 텍스처 (작은 캔버스, 모바일 부담 적게) ----------
 function canvasTex(w, h, draw) {
@@ -158,8 +145,12 @@ function makeMesh(type, def) {
       return g;
     }
     case 'racket': {
-      // 손잡이가 로컬 원점, 헤드가 +y 방향
+      // 손잡이가 원점. 안쪽 그룹에서 헤드가 +y, 바깥에서 눕혀 헤드가 -z (바닥에 누운 모양)
+      const outer = new THREE.Group();
       const g = new THREE.Group();
+      g.rotation.x = -Math.PI / 2;
+      g.position.y = 0.02;
+      outer.add(g);
       const grip = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.18, 0.03), lambert({ color: '#333a55' }));
       grip.position.y = 0.06;
       const shaft = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.26, 0.012), lambert({ color: '#cccccc' }));
@@ -174,7 +165,7 @@ function makeMesh(type, def) {
       strings.scale.set(1, 1.25, 1);
       strings.position.y = 0.53;
       g.add(grip, shaft, head, strings);
-      return g;
+      return outer;
     }
     case 'jumprope': {
       // 바닥에 둘둘 말린 줄 + 손잡이 2개
@@ -273,37 +264,9 @@ export class Items {
       this.list.push(item);
     }
 
-    this.buildCart(scene, physics);
 
     // 원반 활공, 셔틀콕 공기저항 등은 물리 계산 단계마다 적용
     physics.world.addEventListener('preStep', () => this.applyForces());
-  }
-
-  // 공 바구니 (공들 뒤, 벽 쪽)
-  buildCart(scene, physics) {
-    const x = -0.7, z = -10.35, w = 3.4, d = 0.6, h = 0.55;
-    const g = new THREE.Group();
-    g.position.set(x, 0, z);
-    const frame = new THREE.MeshLambertMaterial({ color: '#8f9aa6' });
-    const add = (bw, bh, bd, px, py, pz) => {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bd), frame);
-      m.position.set(px, py, pz);
-      g.add(m);
-    };
-    add(w, 0.04, d, 0, 0.15, 0);                 // 바닥판
-    for (const sx of [-1, 1]) for (const sz of [-1, 1]) add(0.04, h, 0.04, sx * w / 2, h / 2, sz * d / 2);
-    for (const sz of [-1, 1]) add(w, 0.04, 0.04, 0, h, sz * d / 2);
-    for (const sx of [-1, 1]) add(0.04, 0.04, d, sx * w / 2, h, 0);
-    for (let i = -3; i <= 3; i++) add(0.02, h - 0.15, 0.02, (i * w) / 8, (h + 0.15) / 2, d / 2);
-    // 바구니 안의 장식용 공들
-    const cols = ['#e8762b', '#ffffff', '#e84a5f', '#ffd23f', '#2a5bd7', '#e8762b', '#e84a5f'];
-    cols.forEach((c, i) => {
-      const b = new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 8), new THREE.MeshLambertMaterial({ color: c }));
-      b.position.set(-1.35 + i * 0.45, 0.3, (i % 2) * 0.12 - 0.06);
-      g.add(b);
-    });
-    scene.add(g);
-    physics.addStaticBox(x, h / 2, z, w / 2, h / 2, d / 2);
   }
 
   applyForces() {

@@ -12,6 +12,7 @@ import { FlagBeltBox, PracticeFriend } from './flagFootball.js';
 import { Hud } from './hud.js';
 import { Game } from './game.js';
 import { VolleyballFixedNet, ChukballFrame } from './equipment.js';
+import { buildStorageArea, slotX, STORAGE_Z, NameTag } from './storageArea.js';
 
 // ---------- 학교명 표시 ----------
 const title = `${CONFIG.schoolName} ${CONFIG.appName}`;
@@ -55,11 +56,20 @@ const badmintonNet = new BadmintonNet(scene, physics, 9, 0); // 오른쪽 배드
 // ---------- 3단계: 고정·동작 기구 ----------
 new VolleyballFixedNet(scene, physics);                       // 가운데 배구 코트 (고정)
 const chukball = new ChukballFrame(scene, physics, -9, 7, +1); // +x 쪽을 바라봄
-const beltBox = new FlagBeltBox(scene, physics, 10, -10.2);
-const npc = new PracticeFriend(scene, physics, 8, -4, { minX: -15.5, maxX: 16.3, minZ: -10.4, maxZ: 10.4 });
+buildStorageArea(scene);
+const beltBox = new FlagBeltBox(scene, physics, slotX('flagbelt'), STORAGE_Z);
+const npc = new PracticeFriend(scene, physics, 8, -4, { minX: -15.5, maxX: 16.3, minZ: -8.6, maxZ: 10.4 });
 const game = new Game({
   avatar, items, camCtl, input, hud, npc, beltBox,
   resettables: [badmintonNet, chukball],
+  nameTag: new NameTag(scene),
+  // 가까이 가면 이름이 뜨는 큰 기구 (위치는 매 프레임 읽음)
+  landmarks: [
+    { name: '🚩 플래그 벨트', pos: () => beltBox.pos, y: 1.0 },
+    { name: '추크볼 골대', pos: () => chukball.body.position, y: 1.7 },
+    { name: '🏸 배드민턴 지주·네트', pos: () => badmintonNet.body.position, y: 1.9 },
+    { name: '🏐 배구 지주·네트', pos: () => ({ x: 0, z: 0 }), y: 2.6, radius: 6 },
+  ],
 });
 document.getElementById('btn-reset').addEventListener('click', () => game.resetAll());
 

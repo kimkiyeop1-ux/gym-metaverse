@@ -11,8 +11,8 @@ const SHOT_SWEET = [0.62, 0.78]; // 슛 게이지의 초록 구간
 const G = 9.82;
 
 export class Game {
-  constructor({ avatar, items, camCtl, input, hud, npc, beltBox, resettables }) {
-    Object.assign(this, { avatar, items, camCtl, input, hud, npc, beltBox });
+  constructor({ avatar, items, camCtl, input, hud, npc, beltBox, resettables, nameTag, landmarks }) {
+    Object.assign(this, { avatar, items, camCtl, input, hud, npc, beltBox, nameTag, landmarks });
     this.resettables = resettables; // 정리 버튼으로 제자리에 돌릴 기구들
     this.rope = new JumpRope(items.scene, avatar, hud);
     this.hoop = new HulaHoop(avatar, items, hud);
@@ -156,6 +156,36 @@ export class Game {
 
     this.rope.update(dt);
     if (this.hoop.update(dt)) this.dropHoopAtFeet();
+    this.updateNameTag();
+  }
+
+  // 가장 가까운 용기구(2.5m 이내) 위에 이름 띄우기
+  updateNameTag() {
+    const p = this.avatar.position;
+    let best = null, bestD = 2.5;
+    for (const it of this.items.list) {
+      if (it.held || it.busy) continue;
+      const b = it.body.position;
+      const d = Math.hypot(b.x - p.x, b.z - p.z) - it.def.r;
+      if (d < bestD) {
+        bestD = d;
+        best = { name: it.def.name, x: b.x, y: Math.max(b.y + it.def.r + 0.4, 2.1), z: b.z }; // 아바타 머리 위로
+      }
+    }
+    if (!best) {
+      for (const l of this.landmarks) {
+        const q = l.pos();
+        const d = Math.hypot(q.x - p.x, q.z - p.z);
+        if (d < (l.radius || 2.2) && d < bestD + 1) {
+          bestD = d;
+          best = { name: l.name, x: q.x, y: l.y, z: q.z };
+        }
+      }
+    }
+    // 들고 있는 동안에는 숨김
+    if (this.held) best = null;
+    if (best) this.nameTag.show(best.name, best.x, best.y, best.z);
+    else this.nameTag.show(null);
   }
 
   // 줄넘기·훌라후프 하는 중에는 걷지 않음
@@ -231,7 +261,7 @@ export class Game {
       const hand = this.avatar.parts.rightHand;
       hand.add(it.mesh);
       it.mesh.position.set(0, 0, 0.02);
-      it.mesh.rotation.set(Math.PI / 2 + 0.3, 0, 0);
+      it.mesh.rotation.set(Math.PI + 0.3, 0, 0); // 헤드가 앞쪽 위로
       it.mesh.quaternion.setFromEuler(it.mesh.rotation);
     }
   }
