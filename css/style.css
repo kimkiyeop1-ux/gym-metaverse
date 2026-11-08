@@ -160,32 +160,146 @@ body.touch .pill-btn.touch-only { display: inline-block !important; }
 /* ---------- 동작 버튼 ---------- */
 #actions {
   position: fixed;
-  right: calc(16px + env(safe-area-inset-right));
-  bottom: calc(20px + env(safe-area-inset-bottom));
-  width: 190px;
+  right: calc(14px + env(safe-area-inset-right));
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  width: 250px;
   height: 190px;
   pointer-events: none;
 }
 .act-btn {
   position: absolute;
   pointer-events: auto;
-  width: 64px;
-  height: 64px;
+  width: 66px;
+  height: 66px;
   border-radius: 50%;
   border: 3px solid #fff;
-  background: rgba(31, 42, 92, 0.75);
+  background: rgba(31, 42, 92, 0.78);
   color: #fff;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 800;
+  line-height: 1.1;
+  padding: 0;
+  white-space: pre-line;
   touch-action: none;
   transition: transform 0.08s;
+  -webkit-user-select: none;
+  user-select: none;
 }
 .act-btn.down { transform: scale(0.9); background: rgba(31, 42, 92, 0.95); }
-.act-btn.hidden { display: none; }
+.act-btn.hidden { display: none !important; }
 .act-btn.big { width: 84px; height: 84px; right: 0; bottom: 0; font-size: 16px; background: rgba(230, 120, 40, 0.85); }
-#btn-grab  { right: 96px; bottom: 6px; }
-#btn-throw { right: 84px; bottom: 84px; }
-#btn-kick  { right: 10px; bottom: 100px; }
+.act-btn[data-color="throw"] { background: rgba(214, 64, 69, 0.85); }
+.act-btn[data-color="kick"] { background: rgba(46, 160, 110, 0.85); }
+.act-btn[data-color="toss"] { background: rgba(70, 120, 220, 0.85); }
+.act-btn[data-slot="0"] { right: 96px; bottom: 2px; }
+.act-btn[data-slot="1"] { right: 90px; bottom: 82px; }
+.act-btn[data-slot="2"] { right: 8px;  bottom: 100px; }
+.act-btn[data-slot="3"] { right: 172px; bottom: 30px; }
+body:not(.touch) .act-btn.slot { display: none; }
+
+#key-hints {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  pointer-events: none;
+}
+#key-hints .hint-chip {
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  white-space: nowrap;
+}
+#key-hints kbd {
+  display: inline-block;
+  min-width: 22px;
+  padding: 1px 6px;
+  margin-right: 6px;
+  border-radius: 6px;
+  background: #1f2a5c;
+  color: #fff;
+  font: 800 13px system-ui, sans-serif;
+  text-align: center;
+}
+
+/* ---------- 조준점 · 힘 게이지 ---------- */
+#reticle {
+  position: fixed;
+  left: 50%;
+  top: 36%;
+  width: 18px;
+  height: 18px;
+  margin: -9px 0 0 -9px;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+  display: none;
+}
+#reticle.show { display: block; }
+#gauge {
+  position: fixed;
+  left: 50%;
+  top: 58%;
+  width: 180px;
+  height: 16px;
+  margin-left: -90px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 2px solid #fff;
+  overflow: hidden;
+  pointer-events: none;
+  display: none;
+}
+#gauge.show { display: block; }
+#gauge-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: linear-gradient(90deg, #ffd23f, #e63946); }
+#gauge-sweet { position: absolute; top: 0; bottom: 0; background: rgba(60, 220, 120, 0.75); display: none; }
+#gauge.shot #gauge-sweet { display: block; }
+#gauge-label { position: absolute; left: 0; right: 0; top: -1px; text-align: center; color: #fff; font-size: 11px; font-weight: 800; text-shadow: 0 1px 2px #000; }
+
+/* ---------- 점수 · 골 표시 ---------- */
+#score {
+  position: fixed;
+  top: calc(52px + env(safe-area-inset-top));
+  left: calc(10px + env(safe-area-inset-left));
+  display: flex;
+  gap: 6px;
+  pointer-events: none;
+}
+#score span {
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 13px;
+  font-weight: 800;
+}
+#fps { top: calc(84px + env(safe-area-inset-top)); }
+#popup {
+  position: fixed;
+  left: 50%;
+  top: 30%;
+  transform: translate(-50%, -50%) scale(0.5);
+  font-size: 54px;
+  font-weight: 900;
+  color: #ffd23f;
+  text-shadow: 0 3px 0 #b55a18, 0 6px 14px rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  pointer-events: none;
+  white-space: nowrap;
+}
+#popup.show { animation: pop 1.3s ease-out forwards; }
+@keyframes pop {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+  15% { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }
+  30% { transform: translate(-50%, -50%) scale(1); }
+  80% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -80%) scale(1); }
+}
 
 /* ---------- 시작 화면 ---------- */
 #start {

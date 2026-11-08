@@ -138,10 +138,12 @@ export function buildGym(scene, physics, renderer) {
 
   // ---------------- 벽걸이 농구대 2개 ----------------
   const rimFromBaseline = 1.575;
-  buildHoop(scene, physics, box, +1, 14 - rimFromBaseline, hx);
-  buildHoop(scene, physics, box, -1, -(14 - rimFromBaseline), -hx);
+  const hoops = [
+    buildHoop(scene, physics, box, +1, 14 - rimFromBaseline, hx),
+    buildHoop(scene, physics, box, -1, -(14 - rimFromBaseline), -hx),
+  ];
 
-  return { colliders, bounds: { minX: stageBack, maxX: hx, minZ: -hz, maxZ: hz } };
+  return { colliders, hoops, bounds: { minX: stageBack, maxX: hx, minZ: -hz, maxZ: hz } };
 }
 
 // 계단 위를 부드럽게 오르내리기 위한 경사로 충돌체
@@ -190,6 +192,11 @@ function buildHoop(scene, physics, box, dir, rimX, wallX) {
   rim.position.set(rimX, rimY, 0);
   scene.add(rim);
   box(0.15, 0.04, 0.12, rimX + dir * (rimR + 0.075), rimY, 0, '#ff6a1a', noCam); // 림 받침
+  // 림 충돌체: 작은 구 16개를 원형으로 배치 (공이 림에 맞고 튕김)
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * Math.PI * 2;
+    physics.addStaticSphere(rimX + Math.cos(a) * rimR, rimY, Math.sin(a) * rimR, 0.02, physics.materials.rim);
+  }
 
   // 그물 (와이어프레임 원뿔대)
   const net = new THREE.Mesh(
@@ -198,6 +205,7 @@ function buildHoop(scene, physics, box, dir, rimX, wallX) {
   );
   net.position.set(rimX, rimY - 0.21, 0);
   scene.add(net);
+  const hoop = { x: rimX, y: rimY, z: 0, r: rimR, dir, net, goals: 0 };
 
   // 지지대: 백보드 뒤 세로 기둥 + 벽까지 가로 보 + 사선 보
   const steel = '#3d4752';
@@ -223,6 +231,7 @@ function buildHoop(scene, physics, box, dir, rimX, wallX) {
   }
   // 벽 고정판
   box(0.06, 0.8, 1.7, wallX - dir * 0.03, topY, 0, steel, noCam);
+  return hoop;
 }
 
 function makeBanner(text, x, y) {

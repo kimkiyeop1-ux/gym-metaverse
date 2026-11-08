@@ -42,7 +42,8 @@ export class Input {
 
   // ---------- 키보드 ----------
   bindKeyboard() {
-    const keyAction = { Space: 'jump', KeyE: 'grab', KeyF: 'kick', KeyQ: 'throw' };
+    // 스페이스는 점프, E/Q/F/R 은 지금 할 수 있는 동작에 연결 (game.js 가 해석)
+    const keyAction = { Space: 'jump', KeyE: 'key:E', KeyQ: 'key:Q', KeyF: 'key:F', KeyR: 'key:R' };
     window.addEventListener('keydown', (e) => {
       if (e.target instanceof HTMLInputElement) return;
       if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
@@ -58,6 +59,9 @@ export class Input {
     window.addEventListener('blur', () => {
       this.keys.clear();
       this.held.clear();
+    });
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) { this.keys.clear(); this.held.clear(); }
     });
   }
 
@@ -159,22 +163,33 @@ export class Input {
 
   // ---------- 화면 동작 버튼 ----------
   bindButtons() {
-    for (const btn of document.querySelectorAll('[data-action]')) {
-      const action = btn.dataset.action;
+    // 버튼의 동작(data-action)은 상황에 따라 바뀌므로 누르는 순간에 읽는다
+    for (const btn of document.querySelectorAll('.act-btn')) {
+      let pressedAction = null;
       btn.addEventListener('pointerdown', (e) => {
         e.preventDefault();
         e.stopPropagation();
+        const action = btn.dataset.action;
+        if (!action) return;
+        this.setTouchMode(e.pointerType === 'touch' || this.isTouch);
+        btn.setPointerCapture(e.pointerId);
         btn.classList.add('down');
+        pressedAction = action;
         this.press(action);
       });
       const release = () => {
         btn.classList.remove('down');
-        this.held.delete(action);
+        if (pressedAction) this.held.delete(pressedAction);
+        pressedAction = null;
       };
       btn.addEventListener('pointerup', release);
       btn.addEventListener('pointercancel', release);
-      btn.addEventListener('pointerleave', release);
+      btn.addEventListener('lostpointercapture', release);
     }
+  }
+
+  isHeld(action) {
+    return this.held.has(action);
   }
 
   press(action) {

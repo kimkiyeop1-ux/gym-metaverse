@@ -11,9 +11,10 @@
   -->
   <script>
     (function () {
-      var VERSION = '1-5';
+      var VERSION = '2-1';
       var MODULES = ['main', 'config', 'storage', 'physics', 'gym', 'courtLines',
-                     'avatar', 'camera', 'input', 'joystick'];
+                     'avatar', 'camera', 'input', 'joystick', 'items', 'badminton',
+                     'flagFootball', 'game', 'hud'];
       window.GYM_VERSION = VERSION;
       // 라이브러리는 저장소 안(js/vendor)에 포함: 외부 서버 없이 동작
       var imports = {
@@ -39,6 +40,7 @@
   <div id="hud-top">
     <div id="title" data-school-title>가상 체육관</div>
     <div class="hud-right">
+      <button id="btn-reset" class="pill-btn" aria-label="공 정리">🧺 정리</button>
       <button id="btn-orient" class="pill-btn touch-only" aria-label="가로/세로 전환">📱 가로로</button>
       <button id="btn-help" class="round-btn" aria-label="조작 방법">?</button>
     </div>
@@ -49,25 +51,35 @@
   <!-- 조작 안내 -->
   <div id="help">
     <div class="pc-only">
-      <b>WASD / 방향키</b> 이동 · <b>스페이스</b> 점프<br />
-      <b>마우스 드래그</b> 시점 회전 · <b>휠</b> 확대·축소
+      <b>WASD / 방향키</b> 이동 · <b>스페이스</b> 점프 · <b>마우스 드래그</b> 시점 · <b>휠</b> 확대·축소<br />
+      <b>E</b> 잡기·놓기·플래그 · <b>Q</b> 꾹 눌러 던지기 · <b>F</b> 차기·치기·스파이크 · <b>R</b> 토스
     </div>
     <div class="touch-only">
       <b>왼쪽</b> 조이스틱으로 이동 · <b>오른쪽</b> 드래그로 시점<br />
-      <b>두 손가락</b>으로 확대·축소
+      <b>두 손가락</b>으로 확대·축소 · 기구 가까이 가면 동작 버튼이 나타나요<br />
+      <b>던지기</b>는 꾹 누르고 있다가 떼면 던져요
     </div>
   </div>
 
   <!-- 모바일 조이스틱 -->
   <div id="joystick" class="touch-only"><div id="joystick-knob"></div></div>
 
-  <!-- 동작 버튼 (잡기·던지기·차기는 2단계에서 기구 가까이 가면 나타남) -->
-  <div id="actions" class="touch-only">
-    <button class="act-btn hidden" data-action="grab" id="btn-grab">잡기</button>
-    <button class="act-btn hidden" data-action="throw" id="btn-throw">던지기</button>
-    <button class="act-btn hidden" data-action="kick" id="btn-kick">차기</button>
-    <button class="act-btn big" data-action="jump" id="btn-jump">점프</button>
+  <!-- 동작 버튼: 기구 가까이 가면 해당 동작만 나타남 (game.js 가 채움) -->
+  <div id="actions">
+    <button class="act-btn slot hidden" data-slot="0"></button>
+    <button class="act-btn slot hidden" data-slot="1"></button>
+    <button class="act-btn slot hidden" data-slot="2"></button>
+    <button class="act-btn slot hidden" data-slot="3"></button>
+    <button class="act-btn big touch-only" data-action="jump" id="btn-jump">점프</button>
   </div>
+  <!-- PC: 지금 할 수 있는 동작 키 안내 -->
+  <div id="key-hints" class="pc-only"></div>
+
+  <!-- 조준점 · 힘 게이지 · 점수 · 골 표시 -->
+  <div id="reticle"></div>
+  <div id="gauge"><div id="gauge-sweet"></div><div id="gauge-fill"></div><span id="gauge-label">힘</span></div>
+  <div id="score"></div>
+  <div id="popup"></div>
 
   <!-- 시작 화면 -->
   <div id="start">

@@ -1,11 +1,16 @@
 import * as THREE from 'three';
 import { CONFIG } from './config.js';
 import { storage } from './storage.js';
-import { createPhysics } from './physics.js';
+import { createPhysics, PHYSICS_STEP } from './physics.js';
 import { buildGym } from './gym.js';
 import { Avatar } from './avatar.js';
 import { ThirdPersonCamera } from './camera.js';
 import { Input } from './input.js';
+import { Items } from './items.js';
+import { BadmintonNet } from './badminton.js';
+import { FlagBeltBox, PracticeFriend } from './flagFootball.js';
+import { Hud } from './hud.js';
+import { Game } from './game.js';
 
 // ---------- 학교명 표시 ----------
 const title = `${CONFIG.schoolName} ${CONFIG.appName}`;
@@ -38,6 +43,17 @@ const avatar = new Avatar(scene, physics);
 const camCtl = new ThirdPersonCamera(camera, gym.colliders);
 camCtl.distance = storage.get('camera_distance', CONFIG.camera.distance);
 const input = new Input(canvas);
+
+// ---------- 2단계: 용기구 ----------
+const hud = new Hud();
+const items = new Items(scene, physics, gym, {
+  onGoal: () => hud.popup('골! 🏀'),
+});
+const badmintonNet = new BadmintonNet(scene, physics, 0, 0);
+const beltBox = new FlagBeltBox(scene, physics, 10, -10.2);
+const npc = new PracticeFriend(scene, physics, 8, -4, { minX: -15.5, maxX: 16.3, minZ: -10.4, maxZ: 10.4 });
+const game = new Game({ avatar, items, camCtl, input, hud, npc, beltBox, badmintonNet });
+document.getElementById('btn-reset').addEventListener('click', () => game.resetAll());
 
 // ---------- FPS 표시 (주소 뒤에 ?fps) ----------
 const fpsEl = document.getElementById('fps');
@@ -156,9 +172,15 @@ function frame() {
   moveDir.set(0, 0, 0).addScaledVector(fwd, m.y).addScaledVector(right, m.x);
   const jump = running && input.consume('jump');
 
+  if (running) game.update(dt);
+  npc.update(dt, avatar.position);
   avatar.applyInput(dt, moveDir, jump);
-  physics.world.step(1 / 60, dt, 4);
+  physics.world.step(PHYSICS_STEP, dt, 12);
   avatar.afterPhysics(dt);
+  npc.sync(dt);
+  items.update(dt);
+  badmintonNet.update();
+  game.postPhysics();
 
   // 앞으로 걸을 때는 카메라가 천천히 등 뒤로
   if (!input.dragging && m.y > 0.3) camCtl.followHeading(avatar.heading, m.y, dt);
@@ -180,4 +202,4 @@ function frame() {
 renderer.setAnimationLoop(frame);
 
 // 디버그/테스트용 (콘솔에서 확인)
-window.__gym = { scene, avatar, camCtl, physics, input };
+window.__gym = { scene, avatar, camCtl, physics, input, items, game, npc, badmintonNet };
