@@ -216,8 +216,20 @@ body.touch .pc-only { display: none !important; }
   50%, 80% { transform: rotate(-90deg); }
   100% { transform: rotate(0deg); }
 }
-#btn-portrait {
+.card .version { font-size: 11px; color: #b0b6cc; margin-top: 10px; }
+#btn-landscape {
   margin-top: 14px;
+  padding: 12px 26px;
+  font-size: 16px;
+  font-weight: 800;
+  border: none;
+  border-radius: 999px;
+  background: #e67828;
+  color: #fff;
+  box-shadow: 0 4px 0 #b55a18;
+}
+#btn-portrait {
+  margin-top: 12px;
   padding: 10px 22px;
   font-size: 15px;
   font-weight: 700;

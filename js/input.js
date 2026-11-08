@@ -22,6 +22,7 @@ export class Input {
     );
     this.lookPointers = new Map(); // pointerId -> {x, y}
     this.pinchDist = 0;
+    this.lookStartTime = 0;
     this.mouseId = null;
 
     this.bindKeyboard();
@@ -69,9 +70,21 @@ export class Input {
     c.addEventListener('pointerdown', (e) => {
       if (e.pointerType === 'touch') {
         this.setTouchMode(true);
-        if (e.clientX < window.innerWidth * 0.45 && !this.joystick.active) {
-          this.joystick.start(e);
+        const now = performance.now();
+        const PINCH_WINDOW = 400; // 두 손가락이 이 시간(ms) 안에 닿으면 확대·축소로 봄
+        const isLeft = e.clientX < window.innerWidth * 0.45;
+        const js = this.joystick;
+        if (js.active && (now - js.startTime < PINCH_WINDOW || js.displacement() < 20)) {
+          // 조이스틱으로 잡혔던 손가락 + 새 손가락 = 확대·축소. 조이스틱은 멈춤
+          this.lookPointers.set(js.pointerId, { x: js.lastX, y: js.lastY });
+          js.end();
+          this.lookPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+          this.updatePinchBase();
+        } else if (isLeft && !js.active && this.lookPointers.size < 2
+                   && !(this.lookPointers.size === 1 && now - this.lookStartTime < PINCH_WINDOW)) {
+          js.start(e);
         } else {
+          if (this.lookPointers.size === 0) this.lookStartTime = now;
           this.lookPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
           this.updatePinchBase();
         }

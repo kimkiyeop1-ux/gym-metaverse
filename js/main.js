@@ -58,6 +58,11 @@ async function tryLandscape() {
     /* 지원하지 않으면 세로 안내 화면이 대신 나옴 */
   }
 }
+document.getElementById('version').textContent = `버전 ${CONFIG.version}`;
+// 전체화면·가로 고정을 지원하지 않는 브라우저(아이폰 등)에서는 전환 버튼 숨김
+const canLock = !!(document.documentElement.requestFullscreen && screen.orientation && screen.orientation.lock);
+if (!canLock) document.getElementById('btn-landscape').hidden = true;
+document.getElementById('btn-landscape').addEventListener('click', tryLandscape);
 document.getElementById('btn-portrait').addEventListener('click', () => {
   document.body.classList.add('portrait-ok');
 });

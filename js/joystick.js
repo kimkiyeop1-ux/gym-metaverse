@@ -17,6 +17,7 @@ export class Joystick {
 
   start(e) {
     this.pointerId = e.pointerId;
+    this.startTime = performance.now();
     this.cx = e.clientX;
     this.cy = e.clientY;
     this.base.style.left = `${this.cx}px`;
@@ -25,7 +26,14 @@ export class Joystick {
     this.move(e);
   }
 
+  // 손가락이 처음 누른 곳에서 얼마나 움직였는지(px)
+  displacement() {
+    return Math.hypot(this.lastX - this.cx, this.lastY - this.cy);
+  }
+
   move(e) {
+    this.lastX = e.clientX;
+    this.lastY = e.clientY;
     let dx = e.clientX - this.cx;
     let dy = e.clientY - this.cy;
     const len = Math.hypot(dx, dy);
