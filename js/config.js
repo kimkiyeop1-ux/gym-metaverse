@@ -5,7 +5,8 @@ export const CONFIG = {
   // 학교 이름 (화면 제목, 무대 현수막 등에 표시)
   schoolName: '갱갱중학교',
   appName: '가상 체육관',
-  version: '1단계-4', // 화면에 표시: 휴대폰이 최신 파일을 받았는지 확인용
+  // 화면에 표시되는 버전 (index.html 의 VERSION 값)
+  version: window.GYM_VERSION || 'dev',
 
   // 체육관 크기 (미터). x = 길이 방향, z = 폭 방향
   gym: {

@@ -19,3 +19,7 @@ python3 -m http.server 8000
 
 ## 저장 규칙
 localStorage 키는 모두 `gym_`으로 시작하며(`js/storage.js`), 다른 키는 읽거나 지우지 않습니다.
+
+## 업데이트 배포 시
+`index.html`의 `VERSION` 값을 바꾸면 휴대폰 브라우저가 예전 파일(캐시) 대신 새 파일을 받습니다.
+`js/`에 새 파일을 추가하면 같은 곳의 `MODULES` 목록에도 이름을 넣어야 합니다.

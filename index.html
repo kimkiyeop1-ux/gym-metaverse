@@ -5,15 +5,31 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#1f2a5c" />
   <title>가상 체육관</title>
-  <link rel="stylesheet" href="css/style.css" />
-  <!-- 라이브러리는 저장소 안(js/vendor)에 포함: 외부 서버 없이 동작 -->
-  <script type="importmap">
-    {
-      "imports": {
-        "three": "./js/vendor/three.module.min.js",
-        "cannon-es": "./js/vendor/cannon-es.js"
-      }
-    }
+  <!--
+    ★ 업데이트할 때마다 아래 VERSION 을 바꾸면, 휴대폰이 예전 파일(캐시) 대신 새 파일을 받습니다.
+    js 폴더에 새 파일을 추가하면 MODULES 목록에도 이름을 넣어 주세요.
+  -->
+  <script>
+    (function () {
+      var VERSION = '1-5';
+      var MODULES = ['main', 'config', 'storage', 'physics', 'gym', 'courtLines',
+                     'avatar', 'camera', 'input', 'joystick'];
+      window.GYM_VERSION = VERSION;
+      // 라이브러리는 저장소 안(js/vendor)에 포함: 외부 서버 없이 동작
+      var imports = {
+        'three': './js/vendor/three.module.min.js',
+        'cannon-es': './js/vendor/cannon-es.js'
+      };
+      MODULES.forEach(function (m) { imports['./js/' + m + '.js'] = './js/' + m + '.js?v=' + VERSION; });
+      var map = document.createElement('script');
+      map.type = 'importmap';
+      map.textContent = JSON.stringify({ imports: imports });
+      document.currentScript.after(map);
+      var css = document.createElement('link');
+      css.rel = 'stylesheet';
+      css.href = 'css/style.css?v=' + VERSION;
+      document.head.appendChild(css);
+    })();
   </script>
 </head>
 <body>
@@ -78,6 +94,6 @@
   </div>
 
   <noscript>이 페이지는 자바스크립트가 필요합니다.</noscript>
-  <script type="module" src="js/main.js"></script>
+  <script type="module">import './js/main.js';</script>
 </body>
 </html>
