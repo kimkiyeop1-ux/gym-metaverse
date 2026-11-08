@@ -35,6 +35,12 @@ export const CONFIG = {
     maxPitch: 1.2,
   },
 
+  // 용기구 크기: 블록 아바타는 머리가 커서 실제 크기 공이 작아 보이므로 키움.
+  // 농구 림도 같은 비율로 키워 슛 감각을 유지한다. (1 = 실제 규격)
+  equipment: {
+    ballScale: 1.5,
+  },
+
   // 그래픽 (모바일 성능 우선)
   graphics: {
     maxPixelRatio: 1.5,

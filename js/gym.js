@@ -162,7 +162,8 @@ function addRamp(physics, xTop, xBottom, height, cz, width) {
 // 벽걸이 농구대. dir: +1 이면 +x 벽, -1 이면 -x 벽(무대 쪽)
 function buildHoop(scene, physics, box, dir, rimX, wallX) {
   const rimY = 3.05;
-  const rimR = 0.225;
+  const S = CONFIG.equipment.ballScale; // 공을 키운 만큼 림도 키움
+  const rimR = 0.225 * S;
   const boardX = rimX + dir * (rimR + 0.15); // 백보드 면
   const boardT = 0.05;
   const boardCX = boardX + dir * boardT / 2;
@@ -185,27 +186,28 @@ function buildHoop(scene, physics, box, dir, rimX, wallX) {
 
   // 림
   const rim = new THREE.Mesh(
-    new THREE.TorusGeometry(rimR, 0.018, 6, 20),
+    new THREE.TorusGeometry(rimR, 0.018 * S, 6, 24),
     new THREE.MeshLambertMaterial({ color: '#ff6a1a' })
   );
   rim.rotation.x = Math.PI / 2;
   rim.position.set(rimX, rimY, 0);
   scene.add(rim);
   box(0.15, 0.04, 0.12, rimX + dir * (rimR + 0.075), rimY, 0, '#ff6a1a', noCam); // 림 받침
-  // 림 충돌체: 작은 구 16개를 원형으로 배치 (공이 림에 맞고 튕김)
-  for (let i = 0; i < 16; i++) {
-    const a = (i / 16) * Math.PI * 2;
-    physics.addStaticSphere(rimX + Math.cos(a) * rimR, rimY, Math.sin(a) * rimR, 0.02, physics.materials.rim);
+  // (림을 키운 만큼 백보드가 뒤로 물러남)
+  // 림 충돌체: 작은 구 20개를 원형으로 배치 (공이 림에 맞고 튕김)
+  for (let i = 0; i < 20; i++) {
+    const a = (i / 20) * Math.PI * 2;
+    physics.addStaticSphere(rimX + Math.cos(a) * rimR, rimY, Math.sin(a) * rimR, 0.02 * S, physics.materials.rim);
   }
 
   // 그물 (와이어프레임 원뿔대)
   const net = new THREE.Mesh(
-    new THREE.CylinderGeometry(rimR, rimR * 0.6, 0.42, 12, 3, true),
+    new THREE.CylinderGeometry(rimR, rimR * 0.6, 0.42 * S, 12, 3, true),
     new THREE.MeshBasicMaterial({ color: '#ffffff', wireframe: true, transparent: true, opacity: 0.8 })
   );
-  net.position.set(rimX, rimY - 0.21, 0);
+  net.position.set(rimX, rimY - 0.21 * S, 0);
   scene.add(net);
-  const hoop = { x: rimX, y: rimY, z: 0, r: rimR, dir, net, goals: 0 };
+  const hoop = { x: rimX, y: rimY, z: 0, r: rimR, dir, net, netY: rimY - 0.21 * S, goals: 0 };
 
   // 지지대: 백보드 뒤 세로 기둥 + 벽까지 가로 보 + 사선 보
   const steel = '#3d4752';

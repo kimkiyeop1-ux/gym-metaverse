@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
+import { CONFIG } from './config.js';
 
 // ============================================================
 //  공·작은 용기구 정의
@@ -29,6 +30,12 @@ export const ITEM_DEFS = {
   racket: { name: '배드민턴 라켓', r: 0.12, mass: 0.09, e: 0.2, f: 0.8, ld: 0.05, ad: 0.9,
     hold: 'racket', racket: true },
 };
+
+// 작은 공·원반은 아바타 비율에 맞게 키움 (config.js 의 ballScale)
+// 킨볼·빅발리볼은 원래 커서 그대로 둔다
+const SCALED = ['basketball', 'futsal', 'football', 'dodgeball', 'volleyball', 'frisbee'];
+for (const k of SCALED) ITEM_DEFS[k].r *= CONFIG.equipment.ballScale;
+const FRISBEE_H = 0.03 * CONFIG.equipment.ballScale;
 
 // 처음 놓이는 자리 (공 바구니 옆, -z 벽 쪽)
 const PLACEMENT = [
@@ -110,7 +117,7 @@ function makeMesh(type, def) {
       return new THREE.Mesh(new THREE.SphereGeometry(def.r, 14, 10), lambert({ color: '#e84a5f' }));
     case 'football': {
       // 타원형: 긴 축이 z
-      const m = new THREE.Mesh(new THREE.SphereGeometry(0.09, 12, 10), lambert({ map: T.football }));
+      const m = new THREE.Mesh(new THREE.SphereGeometry(def.r, 12, 10), lambert({ map: T.football }));
       m.geometry.rotateX(Math.PI / 2);
       m.scale.set(1, 1, 1.6);
       const g = new THREE.Group();
@@ -119,10 +126,10 @@ function makeMesh(type, def) {
     }
     case 'frisbee': {
       const g = new THREE.Group();
-      const top = new THREE.Mesh(new THREE.CylinderGeometry(def.r, def.r * 0.95, 0.03, 18), lambert({ color: '#2ec4b6' }));
-      const rim = new THREE.Mesh(new THREE.TorusGeometry(def.r, 0.012, 5, 18), lambert({ color: '#ffffff' }));
+      const top = new THREE.Mesh(new THREE.CylinderGeometry(def.r, def.r * 0.95, FRISBEE_H, 18), lambert({ color: '#2ec4b6' }));
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(def.r, FRISBEE_H * 0.4, 5, 18), lambert({ color: '#ffffff' }));
       rim.rotation.x = Math.PI / 2;
-      rim.position.y = -0.01;
+      rim.position.y = -FRISBEE_H * 0.33;
       g.add(top, rim);
       return g;
     }
@@ -164,7 +171,7 @@ function makeMesh(type, def) {
 }
 
 function makeShape(type, def) {
-  if (type === 'frisbee') return new CANNON.Cylinder(def.r, def.r, 0.03, 10);
+  if (type === 'frisbee') return new CANNON.Cylinder(def.r, def.r, FRISBEE_H, 10);
   if (type === 'racket') return new CANNON.Box(new CANNON.Vec3(0.06, 0.02, 0.3));
   return new CANNON.Sphere(def.r);
 }
@@ -199,7 +206,7 @@ export class Items {
         sleepSpeedLimit: 0.15,
         sleepTimeLimit: 0.6,
       });
-      const y = type === 'frisbee' ? 0.02 : type === 'racket' ? 0.025 : def.r;
+      const y = type === 'frisbee' ? FRISBEE_H / 2 + 0.005 : type === 'racket' ? 0.025 : def.r;
       body.position.set(x, y, z);
       if (type === 'racket') body.quaternion.setFromEuler(0, 0.5, 0);
       physics.world.addBody(body);
@@ -412,7 +419,7 @@ export class Items {
       h.netWobble = Math.max(0, h.netWobble - dt * 1.5);
       const w = h.netWobble;
       h.net.scale.set(1 - 0.15 * w * Math.sin(w * 30), 1 + 0.35 * w, 1 - 0.15 * w * Math.cos(w * 30));
-      h.net.position.y = h.y - 0.21 - 0.08 * w;
+      h.net.position.y = h.netY - 0.08 * w;
     }
   }
 }
