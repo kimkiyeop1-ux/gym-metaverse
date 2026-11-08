@@ -194,3 +194,35 @@ body.touch .pc-only { display: none !important; }
   box-shadow: 0 4px 0 #b55a18;
 }
 #btn-start:active { transform: translateY(2px); box-shadow: 0 2px 0 #b55a18; }
+
+/* ---------- 세로 화면 안내 (휴대폰, 입장 후) ---------- */
+#rotate {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(31, 42, 92, 0.75);
+  z-index: 10;
+}
+@media (orientation: portrait) {
+  body.touch.playing:not(.portrait-ok) #rotate { display: flex; }
+}
+#rotate h2 { margin: 8px 0 6px; font-size: 22px; }
+.rotate-icon { display: inline-block; animation: tilt 1.8s ease-in-out infinite; }
+@keyframes tilt {
+  0%, 20% { transform: rotate(0deg); }
+  50%, 80% { transform: rotate(-90deg); }
+  100% { transform: rotate(0deg); }
+}
+#btn-portrait {
+  margin-top: 14px;
+  padding: 10px 22px;
+  font-size: 15px;
+  font-weight: 700;
+  border: 2px solid #1f2a5c;
+  border-radius: 999px;
+  background: #fff;
+  color: #1f2a5c;
+}

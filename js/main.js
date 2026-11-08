@@ -48,8 +48,24 @@ let fpsFrames = 0, fpsTime = 0;
 // ---------- 시작 화면 ----------
 const startScreen = document.getElementById('start');
 let running = false;
+// 휴대폰: 입장할 때 전체화면 + 가로 고정 시도 (안드로이드 크롬 등에서 동작, 아이폰은 미지원)
+async function tryLandscape() {
+  try {
+    const el = document.documentElement;
+    if (!document.fullscreenElement && el.requestFullscreen) await el.requestFullscreen({ navigationUI: 'hide' });
+    if (screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape');
+  } catch {
+    /* 지원하지 않으면 세로 안내 화면이 대신 나옴 */
+  }
+}
+document.getElementById('btn-portrait').addEventListener('click', () => {
+  document.body.classList.add('portrait-ok');
+});
+
 document.getElementById('btn-start').addEventListener('click', () => {
+  if (input.isTouch) tryLandscape();
   startScreen.classList.add('hidden');
+  document.body.classList.add('playing');
   running = true;
   if (!storage.get('help_seen', false)) {
     document.getElementById('help').classList.add('show');

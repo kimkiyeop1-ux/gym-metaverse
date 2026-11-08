@@ -10,7 +10,7 @@ export const CONFIG = {
   gym: {
     length: 34,       // 본 바닥 길이
     width: 22,        // 본 바닥 폭
-    height: 10,       // 천장 높이
+    height: 8,        // 천장 높이
     stageDepth: 5,    // 무대 깊이 (본 바닥 바깥, -x 쪽)
     stageHeight: 1.0, // 무대 높이
   },

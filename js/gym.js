@@ -79,12 +79,12 @@ export function buildGym(scene, physics, renderer) {
   for (const s of [-1, 1]) {
     for (let x = -12; x <= 12; x += 6) {
       const z = s * (hz - 0.03);
-      box(3.6, 2.2, 0.04, x, 7.3, z, null, { collide: false, camBlock: false, material: glassMat });
+      box(3.6, 2.2, 0.04, x, 5.9, z, null, { collide: false, camBlock: false, material: glassMat });
       // 창틀
-      box(3.8, 0.12, 0.08, x, 8.4, z, frameColor, { collide: false, camBlock: false });
-      box(3.8, 0.12, 0.08, x, 6.2, z, frameColor, { collide: false, camBlock: false });
-      box(0.1, 2.2, 0.08, x, 7.3, z, frameColor, { collide: false, camBlock: false });
-      box(3.6, 0.06, 0.08, x, 7.3, z, frameColor, { collide: false, camBlock: false });
+      box(3.8, 0.12, 0.08, x, 7.0, z, frameColor, { collide: false, camBlock: false });
+      box(3.8, 0.12, 0.08, x, 4.8, z, frameColor, { collide: false, camBlock: false });
+      box(0.1, 2.2, 0.08, x, 5.9, z, frameColor, { collide: false, camBlock: false });
+      box(3.6, 0.06, 0.08, x, 5.9, z, frameColor, { collide: false, camBlock: false });
     }
   }
 
@@ -122,7 +122,7 @@ export function buildGym(scene, physics, renderer) {
   box(0.15, 0.7, openHalf * 2, pX - 0.4, openTop - 0.35, 0, '#a3263a', { collide: false, camBlock: false });
 
   // 학교명 현수막
-  scene.add(makeBanner(CONFIG.schoolName, pX + T / 2 + 0.02, openTop + 1.6));
+  scene.add(makeBanner(CONFIG.schoolName, pX + T / 2 + 0.02, H - 0.62));
 
   // 무대 계단 (양쪽) — 보이는 계단 + 보이지 않는 경사로 충돌체
   const steps = 5, run = 2.0;
@@ -203,21 +203,26 @@ function buildHoop(scene, physics, box, dir, rimX, wallX) {
   const steel = '#3d4752';
   const postX = boardX + dir * 0.2;
   const topY = 5.6;
-  box(0.12, topY - rimY + 0.2, 0.12, postX, (topY + rimY - 0.2) / 2, 0.5, steel, noCam);
-  box(0.12, topY - rimY + 0.2, 0.12, postX, (topY + rimY - 0.2) / 2, -0.5, steel, noCam);
-  box(0.06, 0.06, 1.1, postX, rimY + 0.45, 0, steel, noCam);
+  const postH = topY - rimY + 0.3;
+  const postY = (topY + rimY - 0.3) / 2;
+  box(0.18, postH, 0.18, postX, postY, 0.55, steel, noCam);
+  box(0.18, postH, 0.18, postX, postY, -0.55, steel, noCam);
+  box(0.1, 0.1, 1.2, postX, rimY + 0.45, 0, steel, noCam);
+  box(0.18, 0.18, 1.3, postX, topY, 0, steel, noCam);
+  // 백보드 아래 보호 패드
+  box(0.1, 0.07, 1.84, boardCX, rimY - 0.08, 0, '#1f2a5c', noCam);
   const span = Math.abs(wallX - postX);
   const midX = (wallX + postX) / 2;
-  for (const z of [0.5, -0.5]) {
-    box(span, 0.12, 0.12, midX, topY, z, steel, noCam);
+  for (const z of [0.55, -0.55]) {
+    box(span, 0.18, 0.18, midX, topY, z, steel, noCam);
     // 사선 보 (기둥 아래쪽 → 벽 위쪽)
-    const y1 = rimY + 0.6, y2 = topY;
+    const y1 = rimY + 0.5, y2 = topY;
     const len = Math.hypot(span, y2 - y1);
-    const brace = box(len, 0.08, 0.08, midX, (y1 + y2) / 2, z, steel, noCam);
+    const brace = box(len, 0.12, 0.12, midX, (y1 + y2) / 2, z, steel, noCam);
     brace.rotation.z = Math.atan2(y2 - y1, span) * (dir > 0 ? 1 : -1);
   }
   // 벽 고정판
-  box(0.05, 0.8, 1.4, wallX - dir * 0.03, topY - 0.1, 0, steel, noCam);
+  box(0.06, 0.8, 1.7, wallX - dir * 0.03, topY, 0, steel, noCam);
 }
 
 function makeBanner(text, x, y) {
@@ -237,7 +242,7 @@ function makeBanner(text, x, y) {
   ctx.fillText(text, c.width / 2, c.height / 2 + 4, c.width - 80);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
-  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(8, 1.25), new THREE.MeshBasicMaterial({ map: tex }));
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(6, 0.94), new THREE.MeshBasicMaterial({ map: tex }));
   mesh.rotation.y = Math.PI / 2; // +x 방향(관중석 쪽)을 바라봄
   mesh.position.set(x, y, 0);
   return mesh;
