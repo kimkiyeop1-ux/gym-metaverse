@@ -22,7 +22,7 @@ export const CONFIG = {
     walkSpeed: 5.0,   // m/s
     jumpSpeed: 6.5,   // m/s
     extraGravity: 10, // 점프가 둥둥 뜨지 않도록 추가 중력
-    spawn: { x: 0, y: 0.1, z: 6 },
+    spawn: { x: 3, y: 0.1, z: 7 },
   },
 
   // 카메라
@@ -39,6 +39,7 @@ export const CONFIG = {
   // 농구 림도 같은 비율로 키워 슛 감각을 유지한다. (1 = 실제 규격)
   equipment: {
     ballScale: 1.5,
+    volleyNetHeight: 2.3, // 배구 네트 높이 (중학교 남자 2.30m, 여자 2.15m)
   },
 
   // 그래픽 (모바일 성능 우선)

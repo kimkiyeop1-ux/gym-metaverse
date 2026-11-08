@@ -29,6 +29,10 @@ export const ITEM_DEFS = {
     hold: 'one', throwSpeed: [3, 9], shuttle: true },
   racket: { name: '배드민턴 라켓', r: 0.12, mass: 0.09, e: 0.2, f: 0.8, ld: 0.05, ad: 0.9,
     hold: 'racket', racket: true },
+  jumprope: { name: '줄넘기', r: 0.16, mass: 0.25, e: 0.1, f: 0.9, ld: 0.3, ad: 0.9,
+    hold: 'rope', rope: true },
+  hulahoop: { name: '훌라후프', r: 0.42, mass: 0.3, e: 0.3, f: 0.6, ld: 0.1, ad: 0.6,
+    hold: 'hoop', hoop: true, noPerson: true }, // 바닥의 후프는 사람과 부딪히지 않음 (안에 서도 됨)
 };
 
 // 작은 공·원반은 아바타 비율에 맞게 키움 (config.js 의 ballScale)
@@ -48,8 +52,10 @@ const PLACEMENT = [
   ['frisbee', 0.8, -9.4],
   ['bigvolley', 2.0, -9.2],
   ['kinball', 6.0, -8.4],
-  ['racket', 4.1, 1.2],
-  ['shuttle', 4.5, 1.6],
+  ['racket', 13.1, 1.4],
+  ['shuttle', 13.4, 1.9],
+  ['jumprope', -4.6, -9.5],
+  ['hulahoop', -6.0, -9.3],
 ];
 
 // ---------- 텍스처 (작은 캔버스, 모바일 부담 적게) ----------
@@ -98,6 +104,10 @@ function textures() {
     g.fillRect(0, h * 0.12, w, 4); g.fillRect(0, h * 0.84, w, 4);
     g.fillRect(w / 2 - 2, h * 0.35, 4, h * 0.3);
     for (let i = 0; i < 4; i++) g.fillRect(w / 2 - 6, h * 0.38 + i * 5, 12, 2);
+  });
+  TEX.hoop = canvasTex(64, 8, (g, w, h) => {
+    const cols = ['#ff5fa2', '#ffd23f', '#2ec4b6', '#ffd23f'];
+    for (let i = 0; i < 16; i++) { g.fillStyle = cols[i % 4]; g.fillRect((i * w) / 16, 0, w / 16 + 1, h); }
   });
   return TEX;
 }
@@ -166,13 +176,51 @@ function makeMesh(type, def) {
       g.add(grip, shaft, head, strings);
       return g;
     }
+    case 'jumprope': {
+      // 바닥에 둘둘 말린 줄 + 손잡이 2개
+      const g = new THREE.Group();
+      const coil = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.012, 5, 16), lambert({ color: '#2a5bd7' }));
+      coil.rotation.x = Math.PI / 2;
+      coil.position.y = 0.012;
+      const coil2 = coil.clone();
+      coil2.scale.setScalar(0.8);
+      coil2.position.y = 0.03;
+      g.add(coil, coil2);
+      for (const s of [-1, 1]) {
+        const h = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.035, 0.15), lambert({ color: '#e63946' }));
+        h.position.set(s * 0.06, 0.03, 0.14);
+        h.rotation.y = s * 0.3;
+        g.add(h);
+      }
+      return g;
+    }
+    case 'hulahoop': {
+      // 바깥 그룹: 평평하게 누운 고리 (회전은 코드에서 조합)
+      const g = new THREE.Group();
+      const t = new THREE.Mesh(new THREE.TorusGeometry(def.r, 0.02, 6, 32), lambert({ map: T.hoop }));
+      t.rotation.x = Math.PI / 2;
+      g.add(t);
+      return g;
+    }
   }
   return new THREE.Mesh(new THREE.SphereGeometry(def.r, 10, 8), lambert({ color: '#ccc' }));
+}
+
+// 훌라후프 자세: 방향(yaw) · 세운 정도(stand: 0=누움, π/2=섬) · 굴림(roll)
+const _qa = new THREE.Quaternion(), _qb = new THREE.Quaternion();
+const _Y = new THREE.Vector3(0, 1, 0), _Z = new THREE.Vector3(0, 0, 1);
+export function hoopQuaternion(out, yaw, stand, roll) {
+  out.setFromAxisAngle(_Y, yaw);
+  out.multiply(_qa.setFromAxisAngle(_Z, stand));
+  out.multiply(_qb.setFromAxisAngle(_Y, roll));
+  return out;
 }
 
 function makeShape(type, def) {
   if (type === 'frisbee') return new CANNON.Cylinder(def.r, def.r, FRISBEE_H, 10);
   if (type === 'racket') return new CANNON.Box(new CANNON.Vec3(0.06, 0.02, 0.3));
+  if (type === 'jumprope') return new CANNON.Box(new CANNON.Vec3(0.14, 0.03, 0.2));
+  if (type === 'hulahoop') return new CANNON.Cylinder(def.r, def.r, 0.04, 12);
   return new CANNON.Sphere(def.r);
 }
 
@@ -206,7 +254,8 @@ export class Items {
         sleepSpeedLimit: 0.15,
         sleepTimeLimit: 0.6,
       });
-      const y = type === 'frisbee' ? FRISBEE_H / 2 + 0.005 : type === 'racket' ? 0.025 : def.r;
+      const FLAT_Y = { frisbee: FRISBEE_H / 2 + 0.005, racket: 0.025, jumprope: 0.035, hulahoop: 0.025 };
+      const y = FLAT_Y[type] ?? def.r;
       body.position.set(x, y, z);
       if (type === 'racket') body.quaternion.setFromEuler(0, 0.5, 0);
       physics.world.addBody(body);
@@ -220,6 +269,7 @@ export class Items {
         restYaw: 0,
       };
       body.userData = { item };
+      if (def.noPerson) body.collisionFilterMask = 1;
       this.list.push(item);
     }
 
@@ -281,7 +331,7 @@ export class Items {
   nearest(pos, maxDist, filter) {
     let best = null, bestD = maxDist;
     for (const it of this.list) {
-      if (it.held || (filter && !filter(it))) continue;
+      if (it.held || it.busy || (filter && !filter(it))) continue;
       const p = it.body.position;
       const dx = p.x - pos.x, dz = p.z - pos.z;
       const dy = Math.max(0, Math.abs(p.y - (pos.y + 0.7)) - 0.9); // 몸 높이 범위 밖일 때만 높이 차 반영
@@ -302,7 +352,7 @@ export class Items {
       b.sleep();
       it.flying = false;
     } else {
-      b.collisionFilterMask = -1;
+      b.collisionFilterMask = it.def.noPerson ? 1 : -1;
       b.collisionFilterGroup = 1;
       b.wakeUp();
       if (it.mesh.parent !== this.scene) this.scene.add(it.mesh);
@@ -323,7 +373,13 @@ export class Items {
   reset() {
     for (const it of this.list) {
       if (it.held) this.setHeld(it, false);
+      it.busy = false;
+      it.rolling = null;
+      it.mesh.visible = true;
+      if (it.mesh.parent !== this.scene) this.scene.add(it.mesh);
       const b = it.body, h = it.home;
+      b.collisionFilterGroup = 1;
+      b.collisionFilterMask = it.def.noPerson ? 1 : -1;
       b.position.set(h.x, h.y, h.z);
       b.velocity.set(0, 0, 0);
       b.angularVelocity.set(0, 0, 0);
@@ -337,10 +393,58 @@ export class Items {
     }
   }
 
+  // 훌라후프 굴리기: 물리 대신 직접 움직임 (세워서 굴러가다 느려지면 쓰러짐)
+  startRolling(it, dirX, dirZ, speed, from) {
+    if (it.held) this.setHeld(it, false);
+    const b = it.body;
+    b.collisionFilterMask = 0;
+    b.collisionFilterGroup = 0;
+    b.sleep();
+    it.busy = true;
+    it.rolling = { x: from.x, z: from.z, dx: dirX, dz: dirZ, v: speed, roll: 0, stand: Math.PI / 2 };
+    if (it.mesh.parent !== this.scene) this.scene.add(it.mesh);
+  }
+
+  updateRolling(it, dt) {
+    const r = it.rolling;
+    const R = it.def.r;
+    if (r.v > 0.9) {
+      r.v -= 1.1 * dt;
+    } else {
+      // 느려지면 옆으로 쓰러짐
+      r.v = Math.max(0, r.v - 1.5 * dt);
+      r.stand -= dt * 2.6;
+    }
+    r.x += r.dx * r.v * dt;
+    r.z += r.dz * r.v * dt;
+    // 벽에 닿으면 튕김
+    if (r.x < -16.5 + R || r.x > 16.6 - R) { r.dx *= -1; r.x = THREE.MathUtils.clamp(r.x, -16.5 + R, 16.6 - R); }
+    if (r.z < -10.6 + R || r.z > 10.6 - R) { r.dz *= -1; r.z = THREE.MathUtils.clamp(r.z, -10.6 + R, 10.6 - R); }
+    r.roll += (r.v / R) * dt;
+    const stand = Math.max(0, r.stand);
+    const yaw = Math.atan2(r.dx, r.dz);
+    const y = 0.025 + Math.sin(stand) * R;
+    it.mesh.position.set(r.x, y, r.z);
+    hoopQuaternion(it.mesh.quaternion, yaw + Math.PI / 2, stand, r.roll);
+    if (r.stand <= 0) {
+      // 다 쓰러짐 → 다시 물리로
+      it.busy = false;
+      it.rolling = null;
+      const b = it.body;
+      b.position.set(r.x, 0.03, r.z);
+      b.velocity.set(0, 0, 0);
+      b.quaternion.set(0, 0, 0, 1);
+      b.collisionFilterMask = it.def.noPerson ? 1 : -1;
+      b.collisionFilterGroup = 1;
+      b.wakeUp();
+    }
+  }
+
   // 매 프레임: 화면 동기화, 골 판정, 셔틀콕·풋볼 방향
   update(dt) {
     for (const it of this.list) {
-      if (it.held) continue;
+      if (it.rolling) { this.updateRolling(it, dt); continue; }
+      if (it.held || it.busy) continue;
       const b = it.body;
       const p = b.interpolatedPosition;
       const v = b.velocity;

@@ -82,6 +82,7 @@ export class PracticeFriend {
     body.addShape(new CANNON.Sphere(r), new CANNON.Vec3(0, 0.8, 0));
     body.addShape(new CANNON.Sphere(r), new CANNON.Vec3(0, 1.32, 0));
     body.position.set(x, 0.05, z);
+    body.collisionFilterGroup = 2;
     physics.world.addBody(body);
     this.body = body;
     this.home = { x, z };

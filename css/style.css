@@ -385,3 +385,21 @@ body:not(.touch) .act-btn.slot { display: none; }
   background: #fff;
   color: #1f2a5c;
 }
+
+/* ---------- 줄넘기·훌라후프 횟수 ---------- */
+#counter {
+  position: fixed;
+  left: 50%;
+  top: calc(14px + env(safe-area-inset-top));
+  transform: translateX(-50%);
+  background: rgba(31, 42, 92, 0.88);
+  color: #fff;
+  border-radius: 16px;
+  padding: 6px 18px;
+  text-align: center;
+  pointer-events: none;
+  display: none;
+}
+#counter.show { display: block; }
+#counter .big { font-size: 30px; font-weight: 900; line-height: 1.1; color: #ffd23f; }
+#counter .small { font-size: 12px; opacity: 0.9; }

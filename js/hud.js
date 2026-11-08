@@ -10,6 +10,8 @@ export class Hud {
     this.gaugeLabel = document.getElementById('gauge-label');
     this.score = document.getElementById('score');
     this.popupEl = document.getElementById('popup');
+    this.counterEl = document.getElementById('counter');
+    this.lastCounter = '';
     this.lastSig = '';
     this.lastScore = '';
   }
@@ -64,6 +66,19 @@ export class Hud {
     if (goals > 0) parts.push(`<span>🏀 골 ${goals}</span>`);
     if (flags > 0) parts.push(`<span>🚩 플래그 ${flags}</span>`);
     this.score.innerHTML = parts.join('');
+  }
+
+  // 줄넘기·훌라후프 횟수 표시 (null 이면 숨김)
+  setCounter(title, value, sub) {
+    const key = title === null ? '' : `${title}|${value}|${sub}`;
+    if (key === this.lastCounter) return;
+    this.lastCounter = key;
+    if (title === null) {
+      this.counterEl.classList.remove('show');
+      return;
+    }
+    this.counterEl.innerHTML = `<div class="small">${title}</div><div class="big">${value}</div><div class="small">${sub}</div>`;
+    this.counterEl.classList.add('show');
   }
 
   popup(text) {

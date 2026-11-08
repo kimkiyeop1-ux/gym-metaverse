@@ -60,6 +60,7 @@ export function buildBlockPerson(colors = SUIT_COLORS) {
 
   const arms = [];
   let rightHand = null;
+  let leftHand = null;
   for (const s of [-1, 1]) {
     const sh = new THREE.Group();
     sh.position.set(s * 0.35, 1.22, 0);
@@ -68,12 +69,12 @@ export function buildBlockPerson(colors = SUIT_COLORS) {
     p(0.03, 0.44, 0.19, C.stripe, s * 0.08, -0.2, 0, sh);
     p(0.14, 0.12, 0.15, C.skin, 0, -0.5, 0, sh);
     arms.push(sh);
-    if (s < 0) {
-      // 오른손 (모델 기준 -x 가 오른쪽: 모델은 +z 를 바라봄)
-      rightHand = new THREE.Group();
-      rightHand.position.set(0, -0.55, 0.02);
-      sh.add(rightHand);
-    }
+    // 손 위치 (모델 기준 -x 가 오른쪽: 모델은 +z 를 바라봄)
+    const hand = new THREE.Group();
+    hand.position.set(0, -0.55, 0.02);
+    sh.add(hand);
+    if (s < 0) rightHand = hand;
+    else leftHand = hand;
   }
 
   const head = new THREE.Group();
@@ -105,7 +106,7 @@ export function buildBlockPerson(colors = SUIT_COLORS) {
   }
   belt.visible = false;
 
-  return { model, legs, arms, head, rightHand, belt, flags };
+  return { model, legs, arms, head, rightHand, leftHand, belt, flags };
 }
 
 // 걷기·점프·동작 애니메이션 (아바타와 연습 친구가 같이 씀)
@@ -157,6 +158,7 @@ export class Avatar {
     body.addShape(new CANNON.Sphere(r), new CANNON.Vec3(0, 1.32, 0));
     const sp = this.cfg.spawn;
     body.position.set(sp.x, sp.y, sp.z);
+    body.collisionFilterGroup = 2; // 사람 그룹: 배구 네트는 지나갈 수 있음
     physics.world.addBody(body);
     this.body = body;
     this.world = physics.world;
@@ -174,6 +176,9 @@ export class Avatar {
     this.holdPose = null;    // null | 'one' | 'two' | 'overhead' | 'racket'
     this.charge = 0;         // 던지기 힘 모으는 중 (0~1)
     this.dribble = false;
+    this.activity = null;    // 'rope' | 'hoop' (줄넘기·훌라후프 하는 중)
+    this.activityPhase = 0;  // 줄 각도 / 후프 각도
+    this.hopY = 0;           // 줄넘기 점프 높이 (화면용)
   }
 
   get wearingFlags() {
@@ -270,6 +275,22 @@ export class Avatar {
       }
     }
 
+    if (this.holdPose === 'rope' || this.activity === 'rope') {
+      // 줄넘기: 팔을 옆으로 내리고 손목으로 원 그리기
+      const ph = this.activityPhase;
+      const spin = this.activity === 'rope' ? 1 : 0;
+      rArm.rotation.x = -0.35 + Math.cos(ph) * 0.18 * spin;
+      lArm.rotation.x = -0.35 + Math.cos(ph) * 0.18 * spin;
+      rArm.rotation.z = -0.38 + Math.sin(ph) * 0.06 * spin;
+      lArm.rotation.z = 0.38 - Math.sin(ph) * 0.06 * spin;
+    } else if (this.activity === 'hoop') {
+      // 훌라후프: 팔을 들고 허리를 돌림
+      rArm.rotation.x += (-0.2 - rArm.rotation.x) * t;
+      lArm.rotation.x += (-0.2 - lArm.rotation.x) * t;
+      rArm.rotation.z += (-1.3 - rArm.rotation.z) * t;
+      lArm.rotation.z += (1.3 - lArm.rotation.z) * t;
+    }
+
     // 힘 모으기: 팔을 뒤로
     if (this.charge > 0) {
       const back = this.holdPose === 'two' || this.holdPose === 'overhead' ? -3.0 : -2.6;
@@ -303,12 +324,27 @@ export class Avatar {
       }
       if (this.actionTime >= d) this.action = null;
     }
+
+    // 줄넘기 점프 (몸만 살짝 뜸) / 훌라후프 허리 돌리기
+    if (this.activity === 'rope') {
+      this.model.position.y = this.hopY;
+      const tuck = this.hopY > 0.02 ? 0.5 : 0;
+      this.parts.legs[0].rotation.x = tuck;
+      this.parts.legs[1].rotation.x = tuck;
+    } else if (this.activity === 'hoop') {
+      const a = this.activityPhase;
+      this.model.position.x = Math.cos(a + Math.PI) * 0.04;
+      this.model.position.z = Math.sin(a + Math.PI) * 0.04;
+    } else {
+      this.model.position.x = 0;
+      this.model.position.z = 0;
+    }
   }
 
-  // 오른손의 월드 좌표
-  handPosition(out) {
+  // 손의 월드 좌표 (right: true 오른손 / false 왼손)
+  handPosition(out, right = true) {
     this.root.updateMatrixWorld(true);
-    return this.parts.rightHand.getWorldPosition(out);
+    return (right ? this.parts.rightHand : this.parts.leftHand).getWorldPosition(out);
   }
 
   respawn() {

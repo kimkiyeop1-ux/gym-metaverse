@@ -11,10 +11,10 @@
   -->
   <script>
     (function () {
-      var VERSION = '2-2';
+      var VERSION = '3-1';
       var MODULES = ['main', 'config', 'storage', 'physics', 'gym', 'courtLines',
                      'avatar', 'camera', 'input', 'joystick', 'items', 'badminton',
-                     'flagFootball', 'game', 'hud'];
+                     'flagFootball', 'game', 'hud', 'equipment', 'activities'];
       window.GYM_VERSION = VERSION;
       // 라이브러리는 저장소 안(js/vendor)에 포함: 외부 서버 없이 동작
       var imports = {
@@ -79,6 +79,7 @@
   <div id="reticle"></div>
   <div id="gauge"><div id="gauge-sweet"></div><div id="gauge-fill"></div><span id="gauge-label">힘</span></div>
   <div id="score"></div>
+  <div id="counter"></div>
   <div id="popup"></div>
 
   <!-- 시작 화면 -->

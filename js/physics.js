@@ -20,6 +20,7 @@ export function createPhysics() {
     rim: new CANNON.Material('rim'),
     net: new CANNON.Material('net'),       // 배드민턴 네트 (공이 걸림)
     equipment: new CANNON.Material('equipment'), // 밀 수 있는 기구 (지주 등)
+    trampoline: new CANNON.Material('trampoline'), // 추크볼 그물
   };
   const cm = (a, b, friction, restitution) =>
     world.addContactMaterial(new CANNON.ContactMaterial(a, b, { friction, restitution }));
@@ -28,6 +29,8 @@ export function createPhysics() {
   cm(materials.player, materials.equipment, 0, 0);
   cm(materials.player, materials.net, 0, 0);
   cm(materials.equipment, materials.static, 0.4, 0);
+  cm(materials.player, materials.trampoline, 0, 0);
+  cm(materials.trampoline, materials.static, 0.4, 0);
 
   // 공(용기구)별 재질: 바닥·벽에서 튀는 정도가 다름
   function addItemMaterial({ friction, restitution }) {
@@ -37,6 +40,7 @@ export function createPhysics() {
     cm(m, materials.net, 0.9, 0.02);
     cm(m, materials.equipment, 0.4, restitution * 0.6);
     cm(m, materials.player, 0.2, 0.2);
+    cm(m, materials.trampoline, 0.3, 0.9);
     return m;
   }
 

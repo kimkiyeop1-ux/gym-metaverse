@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { JumpRope, HulaHoop } from './activities.js';
 
 // 동작 판단·실행: 지금 할 수 있는 동작을 고르고, 버튼/키 입력에 따라 실행한다.
 //   E: 잡기·놓기·플래그 뽑기·플래그 착용
@@ -10,8 +11,11 @@ const SHOT_SWEET = [0.62, 0.78]; // 슛 게이지의 초록 구간
 const G = 9.82;
 
 export class Game {
-  constructor({ avatar, items, camCtl, input, hud, npc, beltBox, badmintonNet }) {
-    Object.assign(this, { avatar, items, camCtl, input, hud, npc, beltBox, badmintonNet });
+  constructor({ avatar, items, camCtl, input, hud, npc, beltBox, resettables }) {
+    Object.assign(this, { avatar, items, camCtl, input, hud, npc, beltBox });
+    this.resettables = resettables; // 정리 버튼으로 제자리에 돌릴 기구들
+    this.rope = new JumpRope(items.scene, avatar, hud);
+    this.hoop = new HulaHoop(avatar, items, hud);
     this.held = null;
     this.charging = false;
     this.power = 0;
@@ -51,7 +55,12 @@ export class Game {
 
     this.shotTarget = null;
     if (held) {
-      if (held.def.racket) {
+      if (held.def.rope) {
+        acts.push({ id: 'rope', label: '뛰기', key: 'F', color: 'kick' });
+      } else if (held.def.hoop) {
+        acts.push({ id: 'spin', label: '돌리기', key: 'F', color: 'kick' });
+        if (!this.hoop.spinning) acts.push({ id: 'roll', label: '굴리기', key: 'Q', color: 'throw' });
+      } else if (held.def.racket) {
         acts.push({ id: 'hit', label: '치기', key: 'F', color: 'kick' });
       } else {
         if (held.type === 'basketball') this.shotTarget = this.findShotTarget();
@@ -116,6 +125,9 @@ export class Game {
     this.actions = this.computeActions();
     this.hud.setActions(this.actions);
 
+    // 줄넘기 중에는 점프 버튼/스페이스도 '뛰기'
+    if (this.held && this.held.def.rope && input.consume('jump')) this.rope.press();
+
     // 눌린 입력 → 동작
     for (const token of [...input.pressed]) {
       let act = null;
@@ -141,6 +153,25 @@ export class Game {
     }
 
     this.hud.setScore(this.goalScore, this.flagScore);
+
+    this.rope.update(dt);
+    if (this.hoop.update(dt)) this.dropHoopAtFeet();
+  }
+
+  // 줄넘기·훌라후프 하는 중에는 걷지 않음
+  get movementLocked() {
+    return this.rope.spinning || this.hoop.spinning;
+  }
+
+  dropHoopAtFeet() {
+    const it = this.held;
+    if (!it) return;
+    const p = this.avatar.position;
+    this.items.setHeld(it, false);
+    it.body.position.set(p.x, 0.04, p.z);
+    it.body.quaternion.set(0, 0, 0, 1);
+    it.body.velocity.set(0, 0, 0);
+    this.clearHeld();
   }
 
   run(act, token) {
@@ -158,6 +189,9 @@ export class Game {
       case 'toss': return this.toss(act.target || this.held);
       case 'spike': return this.spike(act.target);
       case 'hit': return this.hit();
+      case 'rope': return this.rope.press();
+      case 'spin': return this.hoop.press();
+      case 'roll': return this.rollHoop();
       case 'pull':
         a.playAction('pull');
         if (this.npc.pullFlag()) {
@@ -187,6 +221,11 @@ export class Game {
     this.items.setHeld(it, true);
     this.held = it;
     this.avatar.holdPose = it.def.hold;
+    if (it.def.rope) {
+      it.mesh.visible = false;
+      this.rope.pickUp();
+    }
+    if (it.def.hoop) this.hoop.pickUp(it);
     if (it.def.racket) {
       // 라켓은 오른손에 붙임 (헤드가 위·앞으로)
       const hand = this.avatar.parts.rightHand;
@@ -212,6 +251,12 @@ export class Game {
   }
 
   clearHeld() {
+    const it = this.held;
+    if (it && it.def.rope) {
+      it.mesh.visible = true;
+      this.rope.putDown();
+    }
+    if (it && it.def.hoop) this.hoop.putDown();
     this.held = null;
     this.avatar.holdPose = null;
     this.avatar.dribble = false;
@@ -228,7 +273,7 @@ export class Game {
     const it = this.held;
     const a = this.avatar;
     a.dribble = false;
-    if (!it || it.def.racket) return;
+    if (!it || it.def.racket || it.def.rope || it.def.hoop) return;
     const p = a.position;
     a.forward(this.fwd);
     this.right.set(-this.fwd.z, 0, this.fwd.x); // 아바타 기준 오른쪽
@@ -372,6 +417,17 @@ export class Game {
     }
   }
 
+  // 훌라후프 굴리기
+  rollHoop() {
+    const it = this.held;
+    if (!it) return;
+    const dir = this.faceAim();
+    const p = this.avatar.position;
+    this.avatar.playAction('throw');
+    this.clearHeld();
+    this.items.startRolling(it, dir.x, dir.z, 4.5, { x: p.x + dir.x * 0.7, z: p.z + dir.z * 0.7 });
+  }
+
   // 공 정리 버튼
   resetAll() {
     if (this.held) {
@@ -380,7 +436,7 @@ export class Game {
       this.clearHeld();
     }
     this.items.reset();
-    this.badmintonNet.reset();
+    for (const r of this.resettables) r.reset();
     this.hud.popup('정리 완료!');
   }
 }

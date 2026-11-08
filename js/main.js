@@ -11,6 +11,7 @@ import { BadmintonNet } from './badminton.js';
 import { FlagBeltBox, PracticeFriend } from './flagFootball.js';
 import { Hud } from './hud.js';
 import { Game } from './game.js';
+import { VolleyballFixedNet, MovableVolleyPosts, ChukballFrame } from './equipment.js';
 
 // ---------- 학교명 표시 ----------
 const title = `${CONFIG.schoolName} ${CONFIG.appName}`;
@@ -49,10 +50,18 @@ const hud = new Hud();
 const items = new Items(scene, physics, gym, {
   onGoal: () => hud.popup('골! 🏀'),
 });
-const badmintonNet = new BadmintonNet(scene, physics, 0, 0);
+const badmintonNet = new BadmintonNet(scene, physics, 9, 0); // 오른쪽 배드민턴 코트
+
+// ---------- 3단계: 고정·동작 기구 ----------
+new VolleyballFixedNet(scene, physics);                       // 가운데 배구 코트 (고정)
+const volleyPosts = new MovableVolleyPosts(scene, physics, [{ x: -9.5, z: -9.7 }, { x: -12.5, z: -9.7 }]);
+const chukball = new ChukballFrame(scene, physics, -9, 7, +1); // +x 쪽을 바라봄
 const beltBox = new FlagBeltBox(scene, physics, 10, -10.2);
 const npc = new PracticeFriend(scene, physics, 8, -4, { minX: -15.5, maxX: 16.3, minZ: -10.4, maxZ: 10.4 });
-const game = new Game({ avatar, items, camCtl, input, hud, npc, beltBox, badmintonNet });
+const game = new Game({
+  avatar, items, camCtl, input, hud, npc, beltBox,
+  resettables: [badmintonNet, volleyPosts, chukball],
+});
 document.getElementById('btn-reset').addEventListener('click', () => game.resetAll());
 
 // ---------- FPS 표시 (주소 뒤에 ?fps) ----------
@@ -165,14 +174,16 @@ function frame() {
   }
   if (zoomSaveTimer > 0 && (zoomSaveTimer -= dt) <= 0) storage.set('camera_distance', camCtl.distance);
 
-  // 이동 방향 (카메라 기준)
-  const m = running ? input.getMove() : { x: 0, y: 0 };
+  // 기구 동작 (줄넘기 중이면 점프 입력을 '뛰기'로 먼저 가져감)
+  if (running) game.update(dt);
+
+  // 이동 방향 (카메라 기준). 줄넘기·훌라후프 중에는 제자리
+  const m = running && !game.movementLocked ? input.getMove() : { x: 0, y: 0 };
   camCtl.forward(fwd);
   camCtl.right(right);
   moveDir.set(0, 0, 0).addScaledVector(fwd, m.y).addScaledVector(right, m.x);
   const jump = running && input.consume('jump');
 
-  if (running) game.update(dt);
   npc.update(dt, avatar.position);
   avatar.applyInput(dt, moveDir, jump);
   physics.world.step(PHYSICS_STEP, dt, 12);
@@ -180,6 +191,8 @@ function frame() {
   npc.sync(dt);
   items.update(dt);
   badmintonNet.update();
+  volleyPosts.update();
+  chukball.update();
   game.postPhysics();
 
   // 앞으로 걸을 때는 카메라가 천천히 등 뒤로
@@ -202,4 +215,4 @@ function frame() {
 renderer.setAnimationLoop(frame);
 
 // 디버그/테스트용 (콘솔에서 확인)
-window.__gym = { scene, avatar, camCtl, physics, input, items, game, npc, badmintonNet };
+window.__gym = { scene, avatar, camCtl, physics, input, items, game, npc, badmintonNet, volleyPosts, chukball };
