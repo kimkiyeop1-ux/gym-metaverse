@@ -291,6 +291,7 @@ export class Game {
     this.items.setHeld(it, true);
     this.held = it;
     this.avatar.holdPose = it.def.hold;
+    if (this.mp) this.mp.markHeld(it);
     if (it.def.rope) {
       it.mesh.visible = false;
       this.rope.pickUp();

@@ -158,6 +158,14 @@ export class Multiplayer {
     if (e) this.claim(e);
   }
 
+  // 잡은 즉시 '내가 들고 있음'을 알림 (옆 친구가 몸으로 밀어 뺏지 못하게)
+  markHeld(it) {
+    const e = this.entries.find((x) => x.it === it);
+    if (!e) return;
+    e.last = this.stateOf(e);
+    this.room.updateItem(e.idx, { s: e.last, h: this.me });
+  }
+
   // 내 화면에서 물리 계산 (keepVelocity: 받은 속도 이어받기)
   makeLocal(e, keepVelocity) {
     const b = e.body;
@@ -316,13 +324,13 @@ export class Multiplayer {
           }
         }
         // 몸으로 밀면 내가 주인 (친구가 들고 있지 않고, 방금 바뀌지 않았을 때)
-        if (!(e.it && e.it.remoteHolder) && now - e.changedAt > 600 && this.touching(e, me)) this.claim(e);
+        if (!(e.it && e.it.remoteHolder) && now - e.changedAt > 1000 && this.touching(e, me)) this.claim(e);
       } else if (e.owner === this.me && sendNow) {
         const s = this.stateOf(e);
         if (s !== e.last) {
           e.last = s;
           const holder = e.it && e.it.held ? this.me : '';
-          this.room.setItem(e.idx, { o: this.me, s, h: holder });
+          this.room.updateItem(e.idx, { s, h: holder });
         }
       } else if (!e.owner && this.touching(e, me) && this.count > 1) {
         // 아무도 주인이 아닌 공을 밀면 내가 주인

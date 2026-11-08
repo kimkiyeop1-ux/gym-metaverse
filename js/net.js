@@ -55,7 +55,8 @@ export class FirebaseRoom {
     const fb = await import('firebase-lib');
     this.fb = fb;
     const app = fb.initializeApp(this.config, 'gym-metaverse');
-    const auth = fb.getAuth(app);
+    // 탭마다 따로 로그인 (같은 기기에서 탭 2개를 열어도 다른 사람으로 보이게)
+    const auth = fb.initializeAuth(app, { persistence: fb.inMemoryPersistence });
     const cred = await fb.signInAnonymously(auth);
     this.myId = cred.user.uid;
     const db = fb.getDatabase(app);
@@ -100,12 +101,18 @@ export class FirebaseRoom {
     this.fb.update(this.meRef, { s });
   }
 
+  // 주인 바꾸기 (전체 덮어쓰기)
   setItem(idx, data) {
-    this.fb.set(this.fb.child(this.base, `i/${idx}`), data);
+    this.fb.set(this.fb.child(this.base, `i/${idx}`), data).catch(() => {});
+  }
+
+  // 위치만 갱신 (주인은 그대로). 이미 다른 사람이 주인이면 보안 규칙이 거절함
+  updateItem(idx, data) {
+    this.fb.update(this.fb.child(this.base, `i/${idx}`), data).catch(() => {});
   }
 
   setNpc(data) {
-    this.fb.set(this.fb.child(this.base, 'npc'), data);
+    this.fb.set(this.fb.child(this.base, 'npc'), data).catch(() => {});
   }
 
   sendEvent(ev) {
@@ -207,6 +214,14 @@ export class LocalRoom {
   setItem(idx, d) {
     this.items.set(idx, d);
     this.send({ k: 'i', idx, d });
+  }
+
+  updateItem(idx, d) {
+    const cur = this.items.get(idx);
+    if (cur && cur.o && cur.o !== this.myId) return; // Firebase 규칙과 같게: 주인이 아니면 무시
+    const merged = { ...(cur || { o: this.myId }), ...d };
+    this.items.set(idx, merged);
+    this.send({ k: 'i', idx, d: merged });
   }
 
   setNpc(d) {
