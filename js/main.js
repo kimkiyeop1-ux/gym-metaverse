@@ -366,7 +366,7 @@ function frame() {
   badmintonNet.update();
   chukball.update();
   effects.update(dt);
-  game.postPhysics();
+  game.postPhysics(dt);
   if (mp) mp.update(dt);
 
   // 앞으로 걸을 때는 카메라가 천천히 등 뒤로
