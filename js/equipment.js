@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { CONFIG } from './config.js';
 
-// 3단계 고정·이동 기구: 배구 고정 지주·네트, 배구 이동식 지주(자동 네트), 추크볼 골대
+// 3단계 고정·이동 기구: 배구 고정 지주·네트, 추크볼 골대
 //
 // 충돌 그룹: 네트는 공(그룹 1)하고만 부딪힌다. 아바타(그룹 2)는 네트 아래로 지나갈 수 있음.
 export const GROUP = { DEFAULT: 1, PERSON: 2, NET: 4 };
@@ -90,101 +90,6 @@ export class VolleyballFixedNet {
     body.collisionFilterGroup = GROUP.NET;
     body.collisionFilterMask = GROUP.DEFAULT;
     physics.world.addBody(body);
-  }
-}
-
-// ------------------------------------------------------------
-// 배구 이동식 지주 2개: 각각 밀 수 있음. 거리가 5~11m 가 되면 네트가 자동으로 걸림
-// ------------------------------------------------------------
-export class MovableVolleyPosts {
-  constructor(scene, physics, homes) {
-    this.homes = homes; // [{x,z},{x,z}]
-    this.H = CONFIG.equipment.volleyNetHeight;
-    const postH = this.H + 0.25;
-    this.posts = homes.map((h) => {
-      const g = new THREE.Group();
-      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, postH, 8), lambert('#e9ecef'));
-      pole.position.y = 0.12 + postH / 2;
-      const base = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.12, 0.6), lambert('#e07a1f'));
-      base.position.y = 0.1;
-      g.add(pole, base);
-      for (const [wx, wz] of [[-0.25, -0.25], [0.25, -0.25], [-0.25, 0.25], [0.25, 0.25]]) {
-        const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.04, 8), lambert('#222'));
-        wheel.rotation.z = Math.PI / 2;
-        wheel.position.set(wx, 0.05, wz);
-        g.add(wheel);
-      }
-      const cap = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.08, 0.14), lambert('#e07a1f'));
-      cap.position.y = 0.12 + postH;
-      g.add(cap);
-      scene.add(g);
-
-      const body = new CANNON.Body({ mass: 25, linearDamping: 0.9, material: physics.materials.equipment, allowSleep: false });
-      body.addShape(new CANNON.Box(new CANNON.Vec3(0.3, 0.08, 0.3)), new CANNON.Vec3(0, 0.08, 0));
-      body.addShape(new CANNON.Box(new CANNON.Vec3(0.07, postH / 2, 0.07)), new CANNON.Vec3(0, 0.12 + postH / 2, 0));
-      body.position.set(h.x, 0.001, h.z);
-      physics.world.addBody(body);
-      keepUpright(physics.world, body);
-      return { group: g, body };
-    });
-
-    // 두 지주 사이 네트
-    this.net = makeVolleyNet(6);
-    this.net.visible = false;
-    scene.add(this.net);
-    this.netShape = new CANNON.Box(new CANNON.Vec3(3, 0.5, 0.02));
-    this.netBody = new CANNON.Body({ mass: 0, type: CANNON.Body.KINEMATIC, material: physics.materials.net });
-    this.netBody.addShape(this.netShape);
-    this.netBody.collisionFilterGroup = GROUP.NET;
-    this.netBody.collisionFilterMask = 0; // 걸렸을 때만 켬
-    this.netBody.position.set(0, -50, 0);
-    physics.world.addBody(this.netBody);
-    this.lastW = 6;
-  }
-
-  get connected() {
-    return this.net.visible;
-  }
-
-  update() {
-    for (const p of this.posts) {
-      const q = p.body.interpolatedPosition;
-      p.group.position.set(q.x, 0, q.z);
-    }
-    const a = this.posts[0].body.position, b = this.posts[1].body.position;
-    const dx = b.x - a.x, dz = b.z - a.z;
-    const d = Math.hypot(dx, dz);
-    const on = d >= 5 && d <= 11;
-    this.net.visible = on;
-    if (!on) {
-      this.netBody.collisionFilterMask = 0;
-      this.netBody.position.set(0, -50, 0);
-      return;
-    }
-    const w = d - 0.16;
-    const yaw = -Math.atan2(dz, dx);
-    const mx = (a.x + b.x) / 2, mz = (a.z + b.z) / 2, y = this.H - 0.5;
-    this.net.userData.setWidth(w);
-    this.net.position.set(mx, y, mz);
-    this.net.rotation.y = yaw;
-    if (Math.abs(w - this.lastW) > 0.05) {
-      this.netShape.halfExtents.set(w / 2, 0.5, 0.02);
-      this.netShape.updateConvexPolyhedronRepresentation();
-      this.netShape.updateBoundingSphereRadius();
-      this.netBody.updateBoundingRadius();
-      this.lastW = w;
-    }
-    this.netBody.position.set(mx, y, mz);
-    this.netBody.quaternion.setFromEuler(0, yaw, 0);
-    this.netBody.aabbNeedsUpdate = true;
-    this.netBody.collisionFilterMask = GROUP.DEFAULT;
-  }
-
-  reset() {
-    this.posts.forEach((p, i) => {
-      p.body.position.set(this.homes[i].x, 0.001, this.homes[i].z);
-      p.body.velocity.set(0, 0, 0);
-    });
   }
 }
 

@@ -11,7 +11,7 @@ import { BadmintonNet } from './badminton.js';
 import { FlagBeltBox, PracticeFriend } from './flagFootball.js';
 import { Hud } from './hud.js';
 import { Game } from './game.js';
-import { VolleyballFixedNet, MovableVolleyPosts, ChukballFrame } from './equipment.js';
+import { VolleyballFixedNet, ChukballFrame } from './equipment.js';
 
 // ---------- 학교명 표시 ----------
 const title = `${CONFIG.schoolName} ${CONFIG.appName}`;
@@ -54,13 +54,12 @@ const badmintonNet = new BadmintonNet(scene, physics, 9, 0); // 오른쪽 배드
 
 // ---------- 3단계: 고정·동작 기구 ----------
 new VolleyballFixedNet(scene, physics);                       // 가운데 배구 코트 (고정)
-const volleyPosts = new MovableVolleyPosts(scene, physics, [{ x: -9.5, z: -9.7 }, { x: -12.5, z: -9.7 }]);
 const chukball = new ChukballFrame(scene, physics, -9, 7, +1); // +x 쪽을 바라봄
 const beltBox = new FlagBeltBox(scene, physics, 10, -10.2);
 const npc = new PracticeFriend(scene, physics, 8, -4, { minX: -15.5, maxX: 16.3, minZ: -10.4, maxZ: 10.4 });
 const game = new Game({
   avatar, items, camCtl, input, hud, npc, beltBox,
-  resettables: [badmintonNet, volleyPosts, chukball],
+  resettables: [badmintonNet, chukball],
 });
 document.getElementById('btn-reset').addEventListener('click', () => game.resetAll());
 
@@ -191,7 +190,6 @@ function frame() {
   npc.sync(dt);
   items.update(dt);
   badmintonNet.update();
-  volleyPosts.update();
   chukball.update();
   game.postPhysics();
 
@@ -215,4 +213,4 @@ function frame() {
 renderer.setAnimationLoop(frame);
 
 // 디버그/테스트용 (콘솔에서 확인)
-window.__gym = { scene, avatar, camCtl, physics, input, items, game, npc, badmintonNet, volleyPosts, chukball };
+window.__gym = { scene, avatar, camCtl, physics, input, items, game, npc, badmintonNet, chukball };
