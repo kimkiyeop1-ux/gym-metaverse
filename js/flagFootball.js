@@ -19,11 +19,22 @@ export class FlagBeltBox {
       g.add(f);
     });
     scene.add(g);
-    physics.addStaticBox(x, 0.2, z, 0.35, 0.2, 0.25);
+    this.group = g;
+    this.world = physics.world;
+    this.body = physics.addStaticBox(x, 0.2, z, 0.35, 0.2, 0.25);
+    this.active = true;
+  }
+
+  // 자유 체육관에만 있음
+  setActive(on) {
+    this.active = on;
+    this.group.visible = on;
+    if (on && !this.body.world) this.world.addBody(this.body);
+    if (!on && this.body.world) this.world.removeBody(this.body);
   }
 
   isNear(p, dist = 1.4) {
-    return Math.hypot(p.x - this.pos.x, p.z - this.pos.z) < dist;
+    return this.active && Math.hypot(p.x - this.pos.x, p.z - this.pos.z) < dist;
   }
 }
 
@@ -85,6 +96,8 @@ export class PracticeFriend {
     body.collisionFilterGroup = 2;
     physics.world.addBody(body);
     this.body = body;
+    this.world = physics.world;
+    this.active = true;
     this.home = { x, z };
 
     this.heading = 0;
@@ -152,8 +165,17 @@ export class PracticeFriend {
     return this.root.position;
   }
 
+  // 자유 체육관에만 있음 (경기장에서는 숨김)
+  setActive(on) {
+    this.active = on;
+    this.root.visible = on;
+    if (on) this.reset();
+    if (on && !this.body.world) this.world.addBody(this.body);
+    if (!on && this.body.world) this.world.removeBody(this.body);
+  }
+
   canPull(playerPos) {
-    if (this.flagsLeft <= 0) return false;
+    if (!this.active || this.flagsLeft <= 0) return false;
     const p = this.body.position;
     return Math.hypot(p.x - playerPos.x, p.z - playerPos.z) < 1.35;
   }

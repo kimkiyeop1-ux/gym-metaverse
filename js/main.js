@@ -11,11 +11,12 @@ import { BadmintonNet } from './badminton.js';
 import { FlagBeltBox, PracticeFriend } from './flagFootball.js';
 import { Hud } from './hud.js';
 import { Game } from './game.js';
-import { VolleyballFixedNet, ChukballFrame } from './equipment.js';
+import { VolleyballFixedNet, ChukballFrame, FutsalGoal } from './equipment.js';
+import { Kiosks, Match, SPORTS, SPORT_CODES } from './match.js';
 import { buildStorageArea, slotX, STORAGE_Z, NameTag } from './storageArea.js';
 import { Sound } from './sound.js';
 import { Effects, BlobShadows } from './effects.js';
-import { FirebaseRoom, LocalRoom, cleanNickname, cleanRoomCode } from './net.js';
+import { FirebaseRoom, LocalRoom, cleanNickname, cleanRoomCode, matchRoomKey } from './net.js';
 import { Multiplayer } from './multiplayer.js';
 
 // ---------- 학교명 표시 ----------
@@ -87,6 +88,7 @@ const sound = new Sound();
 const effects = new Effects(scene);
 const items = new Items(scene, physics, gym, {
   onGoal: (hoop) => {
+    if (match) { match.hoopGoal(hoop); return; } // 경기장: 팀 점수
     if (mp) { mp.sendGoal(hoop); return; } // 여러 명: 모두에게 알림 (알림으로 효과 표시)
     hud.popup('골! 🏀');
     sound.goal();
@@ -111,7 +113,7 @@ function updateShadows() {
   const ap = avatar.position;
   shadows.put(ap.x, ap.y, ap.z, 0.85);
   const np = npc.position;
-  shadows.put(np.x, np.y, np.z, 0.85);
+  if (npc.active) shadows.put(np.x, np.y, np.z, 0.85);
   if (mp) for (const ra of mp.players.values()) shadows.put(ra.position.x, ra.position.y, ra.position.z, 0.85);
   for (const it of items.list) {
     if (it.held || it.remoteHolder || it.def.rope || it.def.hoop || !it.mesh.visible) continue;
@@ -123,7 +125,10 @@ function updateShadows() {
 const badmintonNet = new BadmintonNet(scene, physics, 9, 0); // 오른쪽 배드민턴 코트
 
 // ---------- 3단계: 고정·동작 기구 ----------
-new VolleyballFixedNet(scene, physics);                       // 가운데 배구 코트 (고정)
+// 배구·배드민턴 네트, 풋살 골대는 그 종목 경기장에서만 놓임 (자유 체육관에서는 치움)
+const volleyNet = new VolleyballFixedNet(scene, physics);      // 가운데 배구 코트 (고정)
+const futsalGoals = [new FutsalGoal(scene, physics, 15.5, -1), new FutsalGoal(scene, physics, -15.5, 1)];
+const kiosks = new Kiosks(scene);                              // 경기장 가는 발판 (+z 벽 쪽)
 const chukball = new ChukballFrame(scene, physics, -9, 7, +1); // +x 쪽을 바라봄
 chukball.onBounce = () => {
   sound.chuk();
@@ -133,20 +138,110 @@ chukball.onBounce = () => {
 buildStorageArea(scene);
 const beltBox = new FlagBeltBox(scene, physics, slotX('flagbelt'), STORAGE_Z);
 const npc = new PracticeFriend(scene, physics, 8, -4, { minX: -15.5, maxX: 16.3, minZ: -8.6, maxZ: 10.4 });
+// 가까이 가면 이름이 뜨는 큰 기구 (위치는 매 프레임 읽음) — 자유 체육관 전용
+const lobbyLandmarks = [
+  { name: '🚩 플래그 벨트', pos: () => beltBox.pos, y: 1.0 },
+  { name: '추크볼 골대', pos: () => chukball.body.position, y: 1.7 },
+];
 const game = new Game({
   avatar, items, camCtl, input, hud, npc, beltBox,
-  resettables: [badmintonNet, chukball],
+  resettables: [chukball],
   nameTag: new NameTag(scene),
   sound,
   effects,
-  // 가까이 가면 이름이 뜨는 큰 기구 (위치는 매 프레임 읽음)
-  landmarks: [
-    { name: '🚩 플래그 벨트', pos: () => beltBox.pos, y: 1.0 },
-    { name: '추크볼 골대', pos: () => chukball.body.position, y: 1.7 },
-    { name: '🏸 배드민턴 지주·네트', pos: () => badmintonNet.body.position, y: 1.9 },
-    { name: '🏐 배구 지주·네트', pos: () => ({ x: 0, z: 0 }), y: 2.6, radius: 6 },
-  ],
+  landmarks: lobbyLandmarks,
 });
+game.kiosks = kiosks;
+game.onJoinSport = (code) => switchSpace(code);
+
+// ---------- 공간: 자유 체육관(로비) ↔ 종목 경기장 ----------
+let space = null;      // null = 자유 체육관, 'bb'·'fs'·'vb'·'bd' = 경기장
+let match = null;      // 경기 진행 (경기장에서만)
+let roomCode = null;   // 여러 명: 입장한 방 코드
+let myName = null;
+let unwatchCounts = null;
+let switching = false;
+
+function applySpaceLayout(code) {
+  const lobby = !code;
+  game.releaseAll();
+  volleyNet.setActive(code === 'vb');
+  badmintonNet.setActive(code === 'bd');
+  for (const g of futsalGoals) g.setActive(code === 'fs');
+  chukball.setActive(lobby);
+  beltBox.setActive(lobby);
+  npc.setActive(lobby);
+  kiosks.setActive(lobby);
+  if (!lobby) avatar.setWearingFlags(false);
+  items.setSpace(lobby ? null : SPORTS[code].items);
+  game.landmarks = lobby ? lobbyLandmarks : [];
+  game.resettables = lobby ? [chukball] : [];
+  game.setAutoRacket(code === 'bd');
+  document.getElementById('btn-reset').textContent = lobby ? '🧺 정리' : '🔄 공 놓기';
+}
+applySpaceLayout(null);
+
+// 방 연결 (code: null 이면 자유 체육관). 실패하면 이유 문자열
+async function connect(code) {
+  const conn = netMode === 'local' ? new LocalRoom() : new FirebaseRoom(CONFIG.firebase);
+  const res = await withTimeout(conn.join(matchRoomKey(roomCode, code), myName), 12000);
+  if (!res.ok) { conn.leave(); return res.reason === 'full' ? 'full' : 'error'; }
+  mp = new Multiplayer({
+    room: conn, scene, physics, avatar, items, game, npc, hud, sound, effects,
+    equipment: code ? [] : [chukball],
+    space: code,
+  });
+  game.mp = mp;
+  window.__gym.mp = mp;
+  hud.setPlayers(mp.playerList());
+  if (!code) unwatchCounts = conn.watchCounts(roomCode, SPORT_CODES, (c, n) => kiosks.setCount(c, n));
+  return null;
+}
+
+function disconnect() {
+  if (unwatchCounts) { unwatchCounts(); unwatchCounts = null; }
+  if (mp) { mp.dispose(); mp = null; game.mp = null; window.__gym.mp = null; }
+}
+
+async function switchSpace(code, from = space) {
+  if (switching) return;
+  switching = true;
+  try {
+    if (match) { match.leave(); match = null; }
+    disconnect();
+    space = code;
+    applySpaceLayout(code);
+    if (!code) {
+      // 자유 체육관으로 돌아옴: 방금 경기한 종목 발판 앞
+      const k = from ? kiosks.spot(from) : null;
+      avatar.body.position.set(k ? k.x : CONFIG.player.spawn.x, 0.1, k ? k.z - 1.6 : CONFIG.player.spawn.z);
+      avatar.body.velocity.set(0, 0, 0);
+      avatar.heading = Math.PI;
+      camCtl.yaw = 0;
+    }
+    if (netMode && roomCode) {
+      hud.toast(code ? `${SPORTS[code].icon} ${SPORTS[code].name} 경기장으로 이동 중...` : '자유 체육관으로 이동 중...');
+      let fail = null;
+      try { fail = await connect(code); } catch (e) { console.warn('connect failed', e); fail = 'error'; }
+      if (fail) {
+        hud.toast(fail === 'full' ? '경기장이 가득 찼어요 (최대 30명)' : '연결하지 못했어요. 잠시 뒤 다시 해 주세요.');
+        if (code) { switching = false; return switchSpace(null, code); }
+      }
+    }
+    if (code) {
+      match = new Match({ code, mp, avatar, camCtl, items, game, hud, sound, effects });
+      if (mp) mp.match = match;
+      match.enter();
+    } else if (mp) {
+      hud.toast(`'${roomCode}' 방 자유 체육관 · 발판에 서면 종목별 경기장으로 갈 수 있어요`);
+    }
+    sound.whistle();
+  } finally {
+    switching = false;
+  }
+}
+document.getElementById('btn-exit').addEventListener('click', () => switchSpace(null));
+document.getElementById('btn-match-start').addEventListener('click', () => { if (match) match.requestStart(); });
 document.getElementById('btn-reset').addEventListener('click', () => game.resetAll());
 
 // ---------- 꾸미기 (👕) : 머리 모양·머리색·신발색·등번호. 이 기기에 저장(gym_look), 친구 화면에도 보임 ----------
@@ -391,20 +486,15 @@ async function joinRoom() {
   startBtn.disabled = true;
   startBtn.textContent = '연결 중...';
   try {
-    const conn = netMode === 'local' ? new LocalRoom() : new FirebaseRoom(CONFIG.firebase);
-    const res = await withTimeout(conn.join(room, name), 12000);
-    if (!res.ok) {
-      showJoinError(res.reason === 'full' ? '방이 가득 찼어요 (최대 30명). 다른 방 코드를 써 주세요.' : '들어갈 수 없어요.');
+    roomCode = room;
+    myName = name;
+    const fail = await connect(null);
+    if (fail) {
+      roomCode = null;
+      showJoinError(fail === 'full' ? '방이 가득 찼어요 (최대 30명). 다른 방 코드를 써 주세요.' : '들어갈 수 없어요.');
       return;
     }
-    mp = new Multiplayer({
-      room: conn, scene, physics, avatar, items, game, npc, hud, sound, effects,
-      equipment: [badmintonNet, chukball],
-    });
-    game.mp = mp;
-    window.__gym.mp = mp;
-    hud.setPlayers(mp.playerList());
-    hud.toast(`'${room}' 방에 들어왔어요 · ${name}`);
+    hud.toast(`'${room}' 방에 들어왔어요 · ${name} · 벽 쪽 발판에서 종목별 경기를 할 수 있어요`);
     enterGame();
   } catch (e) {
     console.warn('join failed', e);
@@ -495,7 +585,7 @@ function frame() {
   const jump = running && !lookOpen && input.consume('jump');
 
   // 연습 친구: 혼자일 때·방장일 때만 직접 움직임 (나머지는 방장 화면을 따라감)
-  if (!mp || mp.isHost) npc.update(dt, mp ? mp.nearestPersonTo(npc.position) : avatar.position);
+  if (npc.active && (!mp || mp.isHost)) npc.update(dt, mp ? mp.nearestPersonTo(npc.position) : avatar.position);
   const wasGrounded = avatar.grounded;
   const fallSpeed = avatar.body.velocity.y;
   avatar.applyInput(dt, moveDir, jump);
@@ -506,13 +596,15 @@ function frame() {
     const p = avatar.position;
     effects.dust(p.x, p.y, p.z, Math.min(1, (-fallSpeed - 3.5) / 5));
   }
-  npc.sync(dt);
+  if (npc.active) npc.sync(dt);
   items.update(dt);
   badmintonNet.update();
   chukball.update();
   effects.update(dt);
   game.postPhysics(dt);
   if (mp) mp.update(dt);
+  if (match && running) match.update(dt);
+  kiosks.update(dt);
 
   // 앞으로 걸을 때는 카메라가 천천히 등 뒤로
   if (!input.dragging && m.y > 0.3) camCtl.followHeading(avatar.heading, m.y, dt);
@@ -539,4 +631,5 @@ function frame() {
 renderer.setAnimationLoop(frame);
 
 // 디버그/테스트용 (콘솔에서 확인)
-window.__gym = { scene, avatar, camCtl, physics, input, items, game, npc, badmintonNet, chukball };
+window.__gym = { scene, avatar, camCtl, physics, input, items, game, npc, badmintonNet, chukball, kiosks,
+  get match() { return match; }, get space() { return space; }, switchSpace };

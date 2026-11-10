@@ -1,12 +1,13 @@
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
-import { buildBlockPerson, animatePerson, Avatar, SUIT_COLORS, DEFAULT_LOOK, applyLook, encodeLook, decodeLook } from './avatar.js';
+import { buildBlockPerson, animatePerson, Avatar, SUIT_COLORS, DEFAULT_LOOK, applyLook, applyTeam, encodeLook, decodeLook } from './avatar.js';
+import { makeItemMesh } from './items.js';
 import { JumpRope } from './activities.js';
 import { makeBubble } from './flagFootball.js';
 
 // ============================================================
 //  다른 친구의 아바타 (네트워크로 받은 상태를 부드럽게 따라감)
-//  상태 문자열: x,y,z,방향,걷기,땅,들기자세,활동,활동각,점프높이,힘,드리블,벨트,플래그수,동작,동작번호,손들기,꾸미기(머리.색.신발.번호)
+//  상태 문자열: x,y,z,방향,걷기,땅,들기자세,활동,활동각,점프높이,힘,드리블,벨트,플래그수,동작,동작번호,손들기,꾸미기(머리.색.신발.번호),팀(r/b)
 // ============================================================
 export function encodePlayerState(a, actionSeq) {
   const r2 = (v) => Math.round(v * 100) / 100;
@@ -14,7 +15,7 @@ export function encodePlayerState(a, actionSeq) {
   return [
     r2(p.x), r2(p.y), r2(p.z), r2(a.heading), r2(a.anim.moveAmount), a.grounded ? 1 : 0,
     a.holdPose || '', a.activity || '', r2(a.activityPhase), r2(a.hopY), r2(a.charge), a.dribble ? 1 : 0,
-    a.wearingFlags ? 1 : 0, a.flagsLeft ?? 2, a.lastAction || '', actionSeq, a.calling > 0 ? 1 : 0, encodeLook(a.look || DEFAULT_LOOK),
+    a.wearingFlags ? 1 : 0, a.flagsLeft ?? 2, a.lastAction || '', actionSeq, a.calling > 0 ? 1 : 0, encodeLook(a.look || DEFAULT_LOOK), a.team || '',
   ].join(',');
 }
 
@@ -25,7 +26,7 @@ function decode(s) {
   return {
     x: n(0), y: n(1), z: n(2), heading: n(3), move: n(4), grounded: f[5] === '1',
     holdPose: f[6] || null, activity: f[7] || null, phase: n(8), hopY: n(9), charge: n(10), dribble: f[11] === '1',
-    wear: f[12] === '1', flags: n(13), action: f[14] || null, actionSeq: n(15), call: f[16] === '1', look: f[17] || '',
+    wear: f[12] === '1', flags: n(13), action: f[14] || null, actionSeq: n(15), call: f[16] === '1', look: f[17] || '', team: f[18] || '',
   };
 }
 
@@ -116,6 +117,17 @@ export class RemoteAvatar {
     return this.root.position;
   }
 
+  // 배드민턴 경기장: 손에 라켓 (공유하는 라켓과 별개인 '내 라켓')
+  setRacket(on) {
+    if (on && !this.racket) {
+      this.racket = makeItemMesh('racket');
+      this.racket.position.set(0, 0, 0.02);
+      this.racket.rotation.set(Math.PI + 0.3, 0, 0);
+      this.parts.rightHand.add(this.racket);
+    }
+    if (this.racket) this.racket.visible = on;
+  }
+
   get wearingFlags() {
     return this.wear;
   }
@@ -144,6 +156,10 @@ export class RemoteAvatar {
     this.wear = st.wear;
     this.flagsLeft = st.flags;
     this.calling = st.call ? 1 : 0;
+    if (st.team !== this.team) {
+      this.team = st.team;
+      applyTeam(this.parts, st.team);
+    }
     if (st.look && st.look !== this.lookStr) {
       this.lookStr = st.look;
       const l = decodeLook(st.look);

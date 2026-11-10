@@ -199,9 +199,24 @@ export function buildBlockPerson(colors = SUIT_COLORS, look = null) {
     plate.position.set(0, 1.04, -0.152);
     plate.rotation.y = Math.PI;
     model.add(plate);
+    var numberPlate = plate;
   }
 
-  const parts = { model, legs, arms, head, rightHand, leftHand, belt, flags, hairStyles, shoes, numberTex };
+  // 경기 팀 조끼 (꾸미기용 모델만, 처음엔 숨김)
+  let bibGroup = null, bibMat = null;
+  if (look) {
+    bibGroup = new THREE.Group();
+    bibMat = new THREE.MeshLambertMaterial({ color: '#e63946' });
+    const vest = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.46, 0.33), bibMat);
+    vest.position.set(0, 1.02, 0);
+    const trim = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.04, 0.34), new THREE.MeshLambertMaterial({ color: '#ffffff' }));
+    trim.position.set(0, 0.8, 0);
+    bibGroup.add(vest, trim);
+    bibGroup.visible = false;
+    model.add(bibGroup);
+  }
+
+  const parts = { model, legs, arms, head, rightHand, leftHand, belt, flags, hairStyles, shoes, numberTex, bibGroup, bibMat, numberPlate };
   if (look) {
     // 머리·신발은 사람마다 색이 달라서 재질을 따로 씀
     const hairMat = new THREE.MeshLambertMaterial({ color: C.hair });
@@ -213,6 +228,17 @@ export function buildBlockPerson(colors = SUIT_COLORS, look = null) {
     applyLook(parts, look);
   }
   return parts;
+}
+
+// 경기 팀 조끼: 'r' 빨강, 'b' 파랑, 그 밖에는 벗음
+export const TEAM_COLORS = { r: '#e63946', b: '#2a5bd7' };
+export function applyTeam(parts, team) {
+  if (!parts.bibGroup) return;
+  const c = TEAM_COLORS[team];
+  parts.bibGroup.visible = !!c;
+  if (c) parts.bibMat.color.set(c);
+  // 등번호는 조끼 위로
+  if (parts.numberPlate) parts.numberPlate.position.z = c ? -0.168 : -0.152;
 }
 
 // 꾸미기 적용 (모양 바꾸기)
@@ -315,6 +341,11 @@ export class Avatar {
 
   setLook(look) {
     this.look = applyLook(this.parts, look);
+  }
+
+  setTeam(team) {
+    this.team = team || '';
+    applyTeam(this.parts, this.team);
   }
 
   // 카메라가 아주 가까우면 내 아바타를 반투명하게 (앞을 가리지 않게)

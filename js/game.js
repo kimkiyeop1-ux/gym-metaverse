@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { JumpRope, HulaHoop } from './activities.js';
+import { makeItemMesh } from './items.js';
+import { SPORTS } from './match.js';
 
 // 동작 판단·실행: 지금 할 수 있는 동작을 고르고, 버튼/키 입력에 따라 실행한다.
 //   E: 잡기·놓기·플래그 뽑기·플래그 착용
@@ -51,9 +53,13 @@ export class Game {
     const held = this.held;
     const items = this.items;
 
-    // E: 플래그 뽑기 > 플래그 착용/벗기 > 잡기/놓기
+    // E: 경기 참가(로비 발판) > 플래그 뽑기 > 플래그 착용/벗기 > 잡기/놓기
     const friend = this.mp ? this.mp.pullablePlayer(pos) : null;
-    if (this.npc.canPull(pos)) {
+    const kiosk = !held && this.kiosks ? this.kiosks.near(pos) : null;
+    if (kiosk) {
+      const sp = SPORTS[kiosk];
+      acts.push({ id: 'join', label: `${sp.icon} ${sp.name}\n경기장`, key: 'E', color: 'throw', target: kiosk });
+    } else if (this.npc.canPull(pos)) {
       acts.push({ id: 'pull', label: '플래그\n뽑기', key: 'E', color: 'throw' });
     } else if (friend) {
       acts.push({ id: 'pullp', label: '플래그\n뽑기', key: 'E', color: 'throw', target: friend });
@@ -103,6 +109,7 @@ export class Game {
         const g = this.findGrab();
         if (g) acts.push({ id: 'grab', label: '잡기', key: 'E', target: g });
       }
+      if (this.autoRacket && !acts.some((x) => x.key === 'F')) acts.push({ id: 'hit', label: '치기', key: 'F', color: 'kick' });
       if (!acts.some((x) => x.key === 'F')) {
         const kin = items.nearest(pos, 0.8, (it) => it.def.lift);
         const kick = items.nearest(pos, 0.7, (it) => it.def.kick && it.body.position.y < 0.6 + it.def.r);
@@ -121,6 +128,28 @@ export class Game {
     return out;
   }
 
+  // 배드민턴 경기장: 모두 '내 라켓'을 오른손에 들고 시작 (공유 라켓과 별개)
+  setAutoRacket(on) {
+    this.autoRacket = on;
+    if (on && !this.myRacket) {
+      this.myRacket = makeItemMesh('racket');
+      this.myRacket.position.set(0, 0, 0.02);
+      this.myRacket.rotation.set(Math.PI + 0.3, 0, 0);
+      this.avatar.parts.rightHand.add(this.myRacket);
+    }
+    if (this.myRacket) this.myRacket.visible = on;
+    if (!this.held) this.avatar.holdPose = on ? 'racket' : null;
+  }
+
+  // 다른 공간으로 갈 때: 들고 있던 물건 내려놓기 (줄넘기·훌라후프 멈춤)
+  releaseAll() {
+    const it = this.held;
+    if (!it) return;
+    if (it.mesh.parent !== this.items.scene) this.items.scene.add(it.mesh);
+    this.items.setHeld(it, false);
+    this.clearHeld();
+  }
+
   // 잡을 물건 고르기: 1.1m 안에서, 아바타가 바라보는 앞쪽에 있는 것을 우선
   findGrab() {
     const a = this.avatar, p = a.position;
@@ -128,6 +157,7 @@ export class Game {
     let best = null, bestScore = Infinity;
     for (const it of this.items.list) {
       if (it.held || it.busy || it.remoteHolder || !it.def.hold) continue;
+      if (this.autoRacket && (it.def.shuttle || it.def.racket)) continue; // 배드민턴 경기장: 라켓으로 치기만
       const b = it.body.position;
       if (b.y > p.y + 2.2) continue;
       const dx = b.x - p.x, dz = b.z - p.z;
@@ -306,6 +336,9 @@ export class Game {
       case 'kick': return this.kick(act.target || this.held);
       case 'pass': return this.passTo(this.held, act.target, false);
       case 'kickpass': return this.passTo(act.ball || this.held, act.target, true);
+      case 'join':
+        if (this.onJoinSport) this.onJoinSport(act.target);
+        return;
       case 'call':
         a.calling = 3;
         this.sound.pop();
@@ -419,7 +452,7 @@ export class Game {
     }
     if (it && it.def.hoop) this.hoop.putDown();
     this.held = null;
-    this.avatar.holdPose = null;
+    this.avatar.holdPose = this.autoRacket ? 'racket' : null;
     this.avatar.dribble = false;
     this.avatar.charge = 0;
     this.charging = false;

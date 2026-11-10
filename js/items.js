@@ -101,6 +101,11 @@ function textures() {
 
 const lambert = (opts) => new THREE.MeshLambertMaterial(opts);
 
+// 공유하지 않는 모양만 필요할 때 (예: 배드민턴 경기장의 '내 라켓')
+export function makeItemMesh(type) {
+  return makeMesh(type, ITEM_DEFS[type]);
+}
+
 function makeMesh(type, def) {
   const T = textures();
   switch (type) {
@@ -253,6 +258,7 @@ export class Items {
       const item = {
         type, def, mesh, body,
         home: { x, y, z },
+        origHome: { x, y, z },
         held: false,
         prevY: y, prevX: x, prevZ: z,
         spin: 0,        // 원반·풋볼 회전 표시용
@@ -412,6 +418,36 @@ export class Items {
       b.collisionFilterGroup = 1;
       b.wakeUp();
     }
+  }
+
+  // 공간 바꾸기: pick = null 이면 모든 기구(자유 체육관),
+  // [[종류, x, z], ...] 이면 그 기구만 그 자리에 두고 나머지는 치움 (경기장)
+  setSpace(pick) {
+    const all = (this.all ||= this.list.slice());
+    let used = all;
+    if (pick) {
+      used = [];
+      for (const [type, x, z] of pick) {
+        const it = all.find((i) => i.type === type && !used.includes(i));
+        if (!it) continue;
+        it.home = { x, y: it.origHome.y, z };
+        used.push(it);
+      }
+    }
+    for (const it of all) {
+      if (it.held) this.setHeld(it, false);
+      it.remote = false;
+      it.remoteHolder = null;
+      const on = used.includes(it);
+      if (!pick) it.home = { ...it.origHome };
+      if (on && !it.body.world) this.physics.world.addBody(it.body);
+      if (!on && it.body.world) this.physics.world.removeBody(it.body);
+      if (it.mesh.parent !== this.scene) this.scene.add(it.mesh);
+      it.mesh.visible = on;
+    }
+    this.list = used;
+    this.reset();
+    for (const it of this.list) it.mesh.position.set(it.home.x, it.home.y, it.home.z);
   }
 
   // 매 프레임: 화면 동기화, 골 판정, 셔틀콕·풋볼 방향

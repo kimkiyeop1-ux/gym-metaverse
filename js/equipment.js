@@ -54,6 +54,15 @@ function makeVolleyNet(w) {
   return g;
 }
 
+// 공간(로비·경기장)에 따라 기구를 놓거나 치우기: 화면 물체 + 물리 몸체
+function setPresent(world, objects, bodies, on) {
+  for (const o of objects) o.visible = on;
+  for (const b of bodies) {
+    if (on && !b.world) world.addBody(b);
+    if (!on && b.world) world.removeBody(b);
+  }
+}
+
 // 회전하지 않게 매 계산마다 똑바로 세우기 (fixedRotation 은 밀리지 않는 문제가 있음)
 function keepUpright(world, body) {
   world.addEventListener('preStep', () => {
@@ -70,19 +79,24 @@ export class VolleyballFixedNet {
     const H = CONFIG.equipment.volleyNetHeight;
     const postZ = 5.5;
     const postH = H + 0.25;
+    this.world = physics.world;
+    this.objects = [];
+    this.bodies = [];
     for (const s of [-1, 1]) {
       const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, postH, 8), lambert('#d9dde2'));
       post.position.set(0, postH / 2, s * postZ);
       const pad = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 1.6, 10), lambert('#2a5bd7'));
       pad.position.set(0, 0.8, s * postZ);
       scene.add(post, pad);
-      physics.addStaticBox(0, postH / 2, s * postZ, 0.13, postH / 2, 0.13);
+      this.objects.push(post, pad);
+      this.bodies.push(physics.addStaticBox(0, postH / 2, s * postZ, 0.13, postH / 2, 0.13));
     }
     const w = postZ * 2 - 0.2;
     const net = makeVolleyNet(w);
     net.rotation.y = Math.PI / 2;
     net.position.set(0, H - 0.5, 0);
     scene.add(net);
+    this.objects.push(net);
 
     const body = new CANNON.Body({ mass: 0, type: CANNON.Body.STATIC, material: physics.materials.net });
     body.addShape(new CANNON.Box(new CANNON.Vec3(0.02, 0.5, w / 2)));
@@ -90,6 +104,67 @@ export class VolleyballFixedNet {
     body.collisionFilterGroup = GROUP.NET;
     body.collisionFilterMask = GROUP.DEFAULT;
     physics.world.addBody(body);
+    this.bodies.push(body);
+  }
+
+  setActive(on) {
+    setPresent(this.world, this.objects, this.bodies, on);
+  }
+}
+
+// ------------------------------------------------------------
+// 풋살 골대 (경기장 전용): 폭 3m, 높이 2m, 깊이 0.8m. facing = 골문이 바라보는 방향(-1 이면 -x 쪽)
+// ------------------------------------------------------------
+export const FUTSAL_GOAL = { halfW: 1.5, h: 2, depth: 0.8 };
+export class FutsalGoal {
+  constructor(scene, physics, x, facing) {
+    const { halfW, h, depth } = FUTSAL_GOAL;
+    this.world = physics.world;
+    this.x = x;          // 골라인 위치
+    this.facing = facing;
+    const g = new THREE.Group();
+    scene.add(g);
+    this.objects = [g];
+    this.bodies = [];
+    const white = lambert('#ffffff');
+    const r = 0.05;
+    const back = x - facing * depth; // 골대 뒤쪽 x
+    const add = (w, hh, d, px, py, pz, mat = white) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, hh, d), mat);
+      m.position.set(px, py, pz);
+      g.add(m);
+    };
+    // 골포스트·크로스바
+    for (const s of [-1, 1]) add(r * 2, h, r * 2, x, h / 2, s * halfW);
+    add(r * 2, r * 2, halfW * 2 + r * 2, x, h, 0);
+    // 뒤쪽 받침
+    for (const s of [-1, 1]) add(depth, 0.05, 0.05, (x + back) / 2, 0.03, s * halfW, lambert('#cfd4da'));
+    add(0.05, 0.05, halfW * 2, back, 0.03, 0, lambert('#cfd4da'));
+    // 그물 (뒤·위·양옆)
+    const netMat = netMaterial(halfW * 4, h * 2);
+    const backNet = new THREE.Mesh(new THREE.PlaneGeometry(halfW * 2, h), netMat);
+    backNet.position.set(back, h / 2, 0);
+    backNet.rotation.y = Math.PI / 2;
+    const topNet = new THREE.Mesh(new THREE.PlaneGeometry(depth, halfW * 2), netMaterial(depth * 4, halfW * 4));
+    topNet.position.set((x + back) / 2, h, 0);
+    topNet.rotation.x = -Math.PI / 2;
+    g.add(backNet, topNet);
+    for (const s of [-1, 1]) {
+      const side = new THREE.Mesh(new THREE.PlaneGeometry(depth, h), netMaterial(depth * 4, h * 2));
+      side.position.set((x + back) / 2, h / 2, s * halfW);
+      g.add(side);
+    }
+    // 물리: 포스트·크로스바·그물(공만 막고 사람은 막지 않게 하면 골키퍼가 들어갈 수 있음 → 사람도 막음)
+    const box = (px, py, pz, hx, hy, hz) => this.bodies.push(physics.addStaticBox(px, py, pz, hx, hy, hz));
+    for (const s of [-1, 1]) box(x, h / 2, s * halfW, r, h / 2, r);
+    box(x, h, 0, r, r, halfW);
+    box(back - facing * 0.03, h / 2, 0, 0.03, h / 2, halfW);
+    box((x + back) / 2, h + 0.03, 0, depth / 2, 0.03, halfW);
+    for (const s of [-1, 1]) box((x + back) / 2, h / 2, s * (halfW + 0.03), depth / 2, h / 2, 0.03);
+  }
+
+  setActive(on) {
+    setPresent(this.world, this.objects, this.bodies, on);
   }
 }
 
@@ -146,6 +221,7 @@ export class ChukballFrame {
     keepUpright(physics.world, body);
     this.body = body;
     this.bed = bed;
+    this.world = physics.world;
     // 앞면 방향 (월드)
     this.normal = new CANNON.Vec3(facing * Math.cos(tilt), Math.sin(tilt), 0);
 
@@ -180,5 +256,10 @@ export class ChukballFrame {
   reset() {
     this.body.position.set(this.home.x, 0.001, this.home.z);
     this.body.velocity.set(0, 0, 0);
+  }
+
+  setActive(on) {
+    if (on) this.reset();
+    setPresent(this.world, [this.group], [this.body], on);
   }
 }

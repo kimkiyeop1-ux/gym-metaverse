@@ -47,8 +47,10 @@ const r2 = (v) => Math.round(v * 100) / 100;
 const r1 = (v) => Math.round(v * 10) / 10;
 
 export class Multiplayer {
-  constructor({ room, scene, physics, avatar, items, game, npc, hud, sound, effects, equipment }) {
-    Object.assign(this, { room, scene, physics, avatar, items, game, npc, hud, sound, effects });
+  // space: null = 자유 체육관(로비), 'bb'·'fs'·'vb'·'bd' = 종목 경기장
+  constructor({ room, scene, physics, avatar, items, game, npc, hud, sound, effects, equipment, space = null }) {
+    Object.assign(this, { room, scene, physics, avatar, items, game, npc, hud, sound, effects, space });
+    this.match = null; // 경기장: Match (main.js 가 연결)
     this.me = room.myId;
     this.players = new Map();   // id -> RemoteAvatar
     this.names = new Map();     // id -> 닉네임 (나 포함)
@@ -80,12 +82,28 @@ export class Multiplayer {
     room.on('event', (ev) => this.onEvent(ev));
 
     // 아바타 동작이 바뀌면 번호를 올려 다른 사람 화면에서도 같은 동작이 나오게
+    this.origPlayAction = avatar.playAction;
     const orig = avatar.playAction.bind(avatar);
     avatar.playAction = (name) => {
       this.actionSeq++;
       avatar.lastAction = name;
       orig(name);
     };
+  }
+
+  // 다른 공간으로 옮길 때: 친구 아바타·표시 지우고, 공은 다시 내 화면에서 계산
+  dispose() {
+    for (const ra of this.players.values()) ra.dispose();
+    this.players.clear();
+    this.scene.remove(this.aimRing, this.myRing, this.aimArrow);
+    this.avatar.playAction = this.origPlayAction;
+    for (const e of this.entries) {
+      e.owner = null;
+      e.target = null;
+      this.makeLocal(e, false);
+    }
+    this.npc.remote = false;
+    this.room.leave();
   }
 
   get count() {
@@ -113,6 +131,7 @@ export class Multiplayer {
     let ra = this.players.get(id);
     if (!ra) {
       ra = new RemoteAvatar(this.scene, this.physics, id, d.n);
+      if (this.space === 'bd') ra.setRacket(true); // 배드민턴 경기장: 모두 라켓을 듦
       this.players.set(id, ra);
       this.hud.toast(`${d.n} 님이 들어왔어요 👋`);
       this.hud.setPlayers(this.playerList());
@@ -308,7 +327,10 @@ export class Multiplayer {
 
   // ---------------- 연습 친구 ----------------
   onNpc(d) {
-    if (!d || d.o === this.me) return;
+    if (!d) return;
+    // 경기장: 이 자리는 경기 상태(점수·시간)를 나르는 데 씀
+    if (this.space) { if (this.match) this.match.onState(d); else this.pendingState = d; return; }
+    if (d.o === this.me) return;
     this.npcRemote = { o: d.o, s: d.s, b: d.b };
   }
 
@@ -340,6 +362,9 @@ export class Multiplayer {
           this.incomingPass = { idx: ev.i, foot: !!ev.f, until: performance.now() + 4000, from: ev.b };
           this.hud.toast(`${by}의 패스! 🙌`);
         }
+        break;
+      case 'pt': case 'start': case 'rs':
+        if (this.match) this.match.onEvent(ev);
         break;
       case 'npcpull':
         if (this.isHost && ev.b !== this.me) this.npc.pullFlag();
@@ -419,7 +444,7 @@ export class Multiplayer {
       }
     }
 
-    this.updateNpc(dt);
+    if (!this.space) this.updateNpc(dt);
 
     if (this.isHost) {
       this.cleanTimer -= dt;
