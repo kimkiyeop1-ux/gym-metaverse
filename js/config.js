@@ -44,6 +44,10 @@ export const CONFIG = {
 
   // 여러 명 접속 (Firebase 실시간 데이터베이스). null 이면 혼자 하기만 가능.
   // Firebase 콘솔 → 프로젝트 설정 → 내 앱(웹)의 firebaseConfig 값을 그대로 붙여 넣기
+  // ★ 사본(Fork)을 만들었다면: 아래 firebase 값을 '내 Firebase' 값으로 바꾸고,
+  //   firebaseSite 를 '내 사이트 주소'(예: 'myid.github.io')로 바꾸세요. (README '내 학교용으로 만들기')
+  //   firebaseSite 와 다른 주소에서 열리면 여러 명 접속은 꺼지고 혼자 하기만 됩니다.
+  firebaseSite: 'kimkiyeop1-ux.github.io',
   firebase: {
     apiKey: 'AIzaSyCuLf8rMtfLNR8rjgRMTO6_o9dAsbO8_GE',
     authDomain: 'gym-metaverse.firebaseapp.com',

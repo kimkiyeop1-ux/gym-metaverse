@@ -229,8 +229,15 @@ updateSoundBtn();
 
 // ---------- 입장 (혼자 / 여러 명) ----------
 // 여러 명: config.js 에 firebase 설정이 있으면 사용. 주소에 ?net=local 이면 같은 브라우저 탭끼리 테스트
+// 사본(Fork) 사이트에서는 원래 주인의 Firebase 를 쓰지 않음 (config.js 의 firebaseSite 와 주소가 같을 때만)
+const isDevHost = ['localhost', '127.0.0.1'].includes(location.hostname);
+const firebaseOk = !!CONFIG.firebase && (isDevHost || !CONFIG.firebaseSite || location.hostname === CONFIG.firebaseSite);
 const netMode = new URLSearchParams(location.search).get('net') === 'local' ? 'local'
-  : CONFIG.firebase ? 'firebase' : null;
+  : firebaseOk ? 'firebase' : null;
+if (CONFIG.firebase && !firebaseOk) {
+  console.info('[가상 체육관] 이 주소는 config.js 의 firebaseSite 와 달라 여러 명 접속을 껐어요. README 의 "내 학교용으로 만들기"를 보세요.');
+  document.getElementById('version').textContent += ' · 혼자 하기';
+}
 const startBtn = document.getElementById('btn-start');
 const soloBtn = document.getElementById('btn-solo');
 const nickEl = document.getElementById('nickname');

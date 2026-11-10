@@ -10,12 +10,48 @@ python3 -m http.server 8000
 # 브라우저에서 http://localhost:8000 접속 (주소 뒤에 ?fps 를 붙이면 FPS 표시)
 ```
 
+## 🏫 내 학교용으로 만들기 (사본 만들기)
+누구나 이 저장소의 사본을 만들어 자기 학교에 맞게 고쳐 쓸 수 있습니다. 컴퓨터에 아무것도 설치하지 않고 **GitHub 웹사이트에서만** 할 수 있어요.
+
+**1. 사본 만들기**
+1. GitHub에 가입·로그인합니다.
+2. 이 저장소 페이지 오른쪽 위의 초록색 **Use this template → Create a new repository** (또는 **Fork**)를 누릅니다.
+3. Repository name은 `gym-metaverse` 그대로 두고, **Public**을 선택한 뒤 만듭니다.
+
+**2. 학교 이름 바꾸기**
+1. 내 사본에서 `js/config.js` 파일을 열고 오른쪽 위 ✏️(연필)을 누릅니다.
+2. `schoolName: '갱갱중학교'` 의 학교 이름을 바꿉니다.
+3. 오른쪽 위 **Commit changes** → 다시 **Commit changes** 를 누르면 저장됩니다.
+
+**3. 사이트 켜기**
+1. 내 사본의 **Settings → Pages** 로 갑니다.
+2. Branch를 `main`, 폴더를 `/ (root)` 로 고르고 **Save** 를 누릅니다.
+3. 1~2분 뒤 `https://내아이디.github.io/gym-metaverse/` 로 접속합니다.
+
+여기까지 하면 **혼자 하기**로 모든 기구를 쓸 수 있습니다.
+
+**4. (선택) 여러 명 동시 접속 켜기** — 내 Firebase가 필요합니다 (무료)
+1. https://console.firebase.google.com 에서 **프로젝트 만들기** (Google 애널리틱스는 꺼도 됨).
+2. 왼쪽 메뉴 **빌드 → Authentication → 시작하기 → 로그인 방법 → 익명** 을 사용 설정.
+3. **빌드 → Realtime Database → 데이터베이스 만들기** (위치: 싱가포르 asia-southeast1 추천, '잠금 모드'로 시작).
+4. Realtime Database의 **규칙** 탭에 이 저장소의 `database.rules.json` 내용을 그대로 붙여 넣고 **게시**.
+5. **프로젝트 설정(⚙️) → 일반 → 내 앱 → 웹(</>)** 으로 앱을 등록하면 나오는 `firebaseConfig` 값을 복사합니다.
+6. 내 사본의 `js/config.js` 에서
+   - `firebase: { ... }` 안의 값을 방금 복사한 내 값으로 바꾸고,
+   - `firebaseSite: 'kimkiyeop1-ux.github.io'` 를 **내 주소**(예: `'내아이디.github.io'`)로 바꿉니다.
+7. `index.html` 의 `VERSION` 값을 하나 올리면(예: `'5-5'` → `'5-6'`) 휴대폰에도 바로 반영됩니다.
+
+> 원래 사이트의 Firebase는 원래 사이트 주소에서만 동작하도록 막혀 있습니다. 사본에서 `firebase` 값을 바꾸지 않으면 여러 명 접속은 꺼지고 혼자 하기만 됩니다.
+
+**사용 조건**: [MIT 라이선스](LICENSE) — 교육용·개인용 모두 자유롭게 쓰고 고칠 수 있습니다. 사본에도 `LICENSE` 파일(원작자 표시)을 남겨 주세요.
+
 ## 접속 주소
 https://kimkiyeop1-ux.github.io/gym-metaverse/  (주소 뒤에 `?fps` 를 붙이면 화면 속도 표시)
 
 ## 설정
 학교명 등은 `js/config.js` 한 곳에서 바꿉니다. 화면 제목, 무대 현수막, 홈 화면 앱 이름에 모두 반영됩니다.
 - `schoolName`: 학교 이름
+- `firebase`, `firebaseSite`: 여러 명 접속 서버와 그 서버를 쓸 사이트 주소 (사본은 위 4번 참고)
 - `equipment.ballScale`: 공 크기 비율 (1 = 실제 규격)
 - `equipment.volleyNetHeight`: 배구 네트 높이
 
