@@ -100,7 +100,7 @@ export class Game {
         acts.push({ id: 'toss', label: '토스', key: 'R', color: 'toss', target: air });
       }
       if (!acts.some((x) => x.key === 'E')) {
-        const g = items.nearest(pos, 0.75, (it) => it.def.hold && it.body.position.y < 2.2);
+        const g = this.findGrab();
         if (g) acts.push({ id: 'grab', label: '잡기', key: 'E', target: g });
       }
       if (!acts.some((x) => x.key === 'F')) {
@@ -119,6 +119,46 @@ export class Game {
     // 받을 친구 표시 원은 지금 패스할 수 있을 때만
     if (!out.some((x) => x.id === 'pass' || x.id === 'kickpass')) this.passTarget = null;
     return out;
+  }
+
+  // 잡을 물건 고르기: 1.1m 안에서, 아바타가 바라보는 앞쪽에 있는 것을 우선
+  findGrab() {
+    const a = this.avatar, p = a.position;
+    a.forward(this.right);
+    let best = null, bestScore = Infinity;
+    for (const it of this.items.list) {
+      if (it.held || it.busy || it.remoteHolder || !it.def.hold) continue;
+      const b = it.body.position;
+      if (b.y > p.y + 2.2) continue;
+      const dx = b.x - p.x, dz = b.z - p.z;
+      const dy = Math.max(0, Math.abs(b.y - (p.y + 0.7)) - 0.9);
+      const d = Math.hypot(dx, dz, dy) - it.def.r;
+      if (d > 1.1) continue;
+      const h = Math.hypot(dx, dz) || 1;
+      const front = (dx * this.right.x + dz * this.right.z) / h; // 1 = 정면, -1 = 뒤
+      const score = d - front * 0.35;
+      if (score < bestScore) { bestScore = score; best = it; }
+    }
+    return best;
+  }
+
+  // 잡힐 물건 밑에 흰 원 표시
+  showGrabMark(it) {
+    if (!this.grabMark) {
+      this.grabMark = new THREE.Mesh(
+        new THREE.RingGeometry(0.8, 1, 24).rotateX(-Math.PI / 2),
+        new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.9, depthWrite: false }),
+      );
+      this.grabMark.renderOrder = 4;
+      this.items.scene.add(this.grabMark);
+    }
+    const m = this.grabMark;
+    m.visible = !!it;
+    if (!it) return;
+    const b = it.mesh.position, r = it.def.r;
+    const s = (r + 0.1) * (1 + Math.sin(this.clock * 7) * 0.08);
+    m.scale.set(s, 1, s);
+    m.position.set(b.x, Math.max(0.02, b.y - r + 0.02), b.z);
   }
 
   // 카메라가 보는 방향과 어떤 지점 사이의 각도
@@ -165,6 +205,8 @@ export class Game {
     if (this.avatar.calling > 0) this.avatar.calling = Math.max(0, this.avatar.calling - dt);
     this.actions = this.computeActions();
     this.hud.setActions(this.actions);
+    const grabAct = this.actions.find((x) => x.id === 'grab');
+    this.showGrabMark(grabAct ? grabAct.target : null);
 
     // 줄넘기 중에는 점프 버튼/스페이스도 '뛰기'
     if (this.held && this.held.def.rope && input.consume('jump')) this.rope.press();

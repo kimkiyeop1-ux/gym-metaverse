@@ -1,12 +1,12 @@
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
-import { buildBlockPerson, animatePerson, Avatar } from './avatar.js';
+import { buildBlockPerson, animatePerson, Avatar, SUIT_COLORS, DEFAULT_LOOK, applyLook, encodeLook, decodeLook } from './avatar.js';
 import { JumpRope } from './activities.js';
 import { makeBubble } from './flagFootball.js';
 
 // ============================================================
 //  다른 친구의 아바타 (네트워크로 받은 상태를 부드럽게 따라감)
-//  상태 문자열: x,y,z,방향,걷기,땅,들기자세,활동,활동각,점프높이,힘,드리블,벨트,플래그수,동작,동작번호,손들기
+//  상태 문자열: x,y,z,방향,걷기,땅,들기자세,활동,활동각,점프높이,힘,드리블,벨트,플래그수,동작,동작번호,손들기,꾸미기(머리.색.신발.번호)
 // ============================================================
 export function encodePlayerState(a, actionSeq) {
   const r2 = (v) => Math.round(v * 100) / 100;
@@ -14,7 +14,7 @@ export function encodePlayerState(a, actionSeq) {
   return [
     r2(p.x), r2(p.y), r2(p.z), r2(a.heading), r2(a.anim.moveAmount), a.grounded ? 1 : 0,
     a.holdPose || '', a.activity || '', r2(a.activityPhase), r2(a.hopY), r2(a.charge), a.dribble ? 1 : 0,
-    a.wearingFlags ? 1 : 0, a.flagsLeft ?? 2, a.lastAction || '', actionSeq, a.calling > 0 ? 1 : 0,
+    a.wearingFlags ? 1 : 0, a.flagsLeft ?? 2, a.lastAction || '', actionSeq, a.calling > 0 ? 1 : 0, encodeLook(a.look || DEFAULT_LOOK),
   ].join(',');
 }
 
@@ -25,7 +25,7 @@ function decode(s) {
   return {
     x: n(0), y: n(1), z: n(2), heading: n(3), move: n(4), grounded: f[5] === '1',
     holdPose: f[6] || null, activity: f[7] || null, phase: n(8), hopY: n(9), charge: n(10), dribble: f[11] === '1',
-    wear: f[12] === '1', flags: n(13), action: f[14] || null, actionSeq: n(15), call: f[16] === '1',
+    wear: f[12] === '1', flags: n(13), action: f[14] || null, actionSeq: n(15), call: f[16] === '1', look: f[17] || '',
   };
 }
 
@@ -63,7 +63,8 @@ export class RemoteAvatar {
     this.scene = scene;
     this.root = new THREE.Group();
     scene.add(this.root);
-    this.parts = buildBlockPerson();
+    this.parts = buildBlockPerson(SUIT_COLORS, DEFAULT_LOOK);
+    this.lookStr = encodeLook(DEFAULT_LOOK);
     this.model = this.parts.model;
     this.root.add(this.model);
     this.label = nameSprite(name);
@@ -143,6 +144,11 @@ export class RemoteAvatar {
     this.wear = st.wear;
     this.flagsLeft = st.flags;
     this.calling = st.call ? 1 : 0;
+    if (st.look && st.look !== this.lookStr) {
+      this.lookStr = st.look;
+      const l = decodeLook(st.look);
+      if (l) applyLook(this.parts, l);
+    }
     this.bubble.visible = st.call;
     this.parts.belt.visible = st.wear;
     this.parts.flags.forEach((f, i) => { f.visible = i < st.flags; });
