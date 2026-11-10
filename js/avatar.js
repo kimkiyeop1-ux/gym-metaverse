@@ -17,6 +17,58 @@ export const SUIT_COLORS = {
   flag: '#e63946',    // 플래그 색
 };
 
+// ---------- 꾸미기 (남색 체육복은 그대로, 머리·신발·등번호만) ----------
+export const LOOK_OPTIONS = {
+  hairStyles: ['기본', '짧게', '단발', '묶음'],
+  hairColors: ['#2b2220', '#6b3e1f', '#b07a45', '#e0b34a', '#3a6fd8', '#ff7fb0'],
+  shoeColors: ['#f5f5f5', '#2b2b2b', '#e63946', '#2a5bd7', '#ffd23f', '#2ec4b6'],
+};
+export const DEFAULT_LOOK = { h: 0, c: 0, s: 0, n: 7 };
+
+// 저장·전송용 짧은 글자 "머리.색.신발.번호" ↔ 객체
+export function encodeLook(l) {
+  return [l.h, l.c, l.s, l.n].join('.');
+}
+export function decodeLook(str) {
+  const f = String(str || '').split('.').map((v) => parseInt(v, 10));
+  if (f.length < 4 || f.some((v) => !Number.isFinite(v))) return null;
+  return cleanLook({ h: f[0], c: f[1], s: f[2], n: f[3] });
+}
+export function cleanLook(l) {
+  const O = LOOK_OPTIONS;
+  const int = (v, max, d) => (Number.isInteger(v) && v >= 0 && v <= max ? v : d);
+  l = l || {};
+  return {
+    h: int(l.h, O.hairStyles.length - 1, 0),
+    c: int(l.c, O.hairColors.length - 1, 0),
+    s: int(l.s, O.shoeColors.length - 1, 0),
+    n: int(l.n, 99, 7),
+  };
+}
+
+// 등번호 그림 (체육복 등에 붙는 판)
+function numberTexture(n) {
+  const c = document.createElement('canvas');
+  c.width = 64;
+  c.height = 64;
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.userData = {
+    set(num) {
+      const g = c.getContext('2d');
+      g.clearRect(0, 0, 64, 64);
+      g.fillStyle = '#ffffff';
+      g.font = 'bold 46px "Arial Black", "Pretendard", sans-serif';
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.fillText(String(num), 32, 35, 60);
+      t.needsUpdate = true;
+    },
+  };
+  t.userData.set(n);
+  return t;
+}
+
 const geoCache = new Map();
 const matCache = new Map();
 function part(w, h, d, color, x, y, z, parent) {
@@ -30,19 +82,22 @@ function part(w, h, d, color, x, y, z, parent) {
 }
 
 // 블록 사람 모델 만들기. 반환: 관절 그룹들
-export function buildBlockPerson(colors = SUIT_COLORS) {
+// look 을 주면 꾸미기 가능한 모델 (머리 모양·색, 신발색, 등번호) → applyLook(parts, look) 로 바꿈
+export function buildBlockPerson(colors = SUIT_COLORS, look = null) {
   const C = { ...SUIT_COLORS, ...colors };
   const model = new THREE.Group();
   const p = part;
 
   const legs = [];
+  const shoes = [];
   for (const s of [-1, 1]) {
     const hip = new THREE.Group();
     hip.position.set(s * 0.13, 0.72, 0);
     model.add(hip);
     p(0.2, 0.62, 0.22, C.suitDark, 0, -0.31, 0, hip);
     p(0.03, 0.6, 0.23, C.stripe, s * 0.1, -0.3, 0, hip);
-    p(0.22, 0.1, 0.3, C.shoe, 0, -0.67, 0.04, hip);
+    const shoe = p(0.22, 0.1, 0.3, C.shoe, 0, -0.67, 0.04, hip);
+    shoes.push(shoe);
     p(0.22, 0.03, 0.3, C.sole, 0, -0.715, 0.04, hip);
     legs.push(hip);
   }
@@ -81,11 +136,38 @@ export function buildBlockPerson(colors = SUIT_COLORS) {
   head.position.set(0, 1.5, 0);
   model.add(head);
   p(0.42, 0.42, 0.4, C.skin, 0, 0, 0, head);
-  p(0.46, 0.13, 0.44, C.hair, 0, 0.21, -0.01, head);
-  p(0.46, 0.34, 0.1, C.hair, 0, 0.06, -0.2, head);
-  p(0.06, 0.24, 0.36, C.hair, -0.22, 0.08, -0.03, head);
-  p(0.06, 0.24, 0.36, C.hair, 0.22, 0.08, -0.03, head);
-  p(0.3, 0.07, 0.06, C.hair, 0, 0.16, 0.19, head);
+  // 머리 모양 (꾸미기용 모델은 4가지를 모두 만들어 두고 하나만 보이게)
+  const hairStyles = [];
+  const styleCount = look ? LOOK_OPTIONS.hairStyles.length : 1;
+  for (let i = 0; i < styleCount; i++) {
+    const g = new THREE.Group();
+    head.add(g);
+    if (i === 1) {
+      // 짧게: 위와 뒤만 얇게
+      p(0.44, 0.08, 0.42, C.hair, 0, 0.215, -0.01, g);
+      p(0.44, 0.2, 0.06, C.hair, 0, 0.11, -0.2, g);
+      p(0.04, 0.12, 0.3, C.hair, -0.215, 0.14, -0.05, g);
+      p(0.04, 0.12, 0.3, C.hair, 0.215, 0.14, -0.05, g);
+    } else {
+      p(0.46, 0.13, 0.44, C.hair, 0, 0.21, -0.01, g);
+      p(0.46, 0.34, 0.1, C.hair, 0, 0.06, -0.2, g);
+      p(0.06, 0.24, 0.36, C.hair, -0.22, 0.08, -0.03, g);
+      p(0.06, 0.24, 0.36, C.hair, 0.22, 0.08, -0.03, g);
+      p(0.3, 0.07, 0.06, C.hair, 0, 0.16, 0.19, g);
+      if (i === 2) {
+        // 단발: 옆·뒤가 턱까지
+        p(0.48, 0.3, 0.12, C.hair, 0, -0.12, -0.19, g);
+        p(0.07, 0.3, 0.3, C.hair, -0.225, -0.1, -0.04, g);
+        p(0.07, 0.3, 0.3, C.hair, 0.225, -0.1, -0.04, g);
+      } else if (i === 3) {
+        // 묶음: 뒤통수에 머리끈 + 꽁지
+        p(0.1, 0.06, 0.06, '#ff5fa2', 0, 0.08, -0.27, g);
+        p(0.13, 0.24, 0.12, C.hair, 0, -0.06, -0.3, g);
+      }
+    }
+    g.visible = i === 0;
+    hairStyles.push(g);
+  }
   p(0.06, 0.08, 0.02, C.eye, -0.09, 0.02, 0.205, head);
   p(0.06, 0.08, 0.02, C.eye, 0.09, 0.02, 0.205, head);
   p(0.07, 0.04, 0.02, C.cheek, -0.14, -0.07, 0.202, head);
@@ -106,7 +188,46 @@ export function buildBlockPerson(colors = SUIT_COLORS) {
   }
   belt.visible = false;
 
-  return { model, legs, arms, head, rightHand, leftHand, belt, flags };
+  // 등번호 (꾸미기용 모델만)
+  let numberTex = null;
+  if (look) {
+    numberTex = numberTexture(look.n);
+    const plate = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.3, 0.3),
+      new THREE.MeshBasicMaterial({ map: numberTex, transparent: true, depthWrite: false })
+    );
+    plate.position.set(0, 1.04, -0.152);
+    plate.rotation.y = Math.PI;
+    model.add(plate);
+  }
+
+  const parts = { model, legs, arms, head, rightHand, leftHand, belt, flags, hairStyles, shoes, numberTex };
+  if (look) {
+    // 머리·신발은 사람마다 색이 달라서 재질을 따로 씀
+    const hairMat = new THREE.MeshLambertMaterial({ color: C.hair });
+    for (const g of hairStyles) g.traverse((m) => { if (m.isMesh && m.material.color.getHexString() === new THREE.Color(C.hair).getHexString()) m.material = hairMat; });
+    const shoeMat = new THREE.MeshLambertMaterial({ color: C.shoe });
+    for (const sh of shoes) sh.material = shoeMat;
+    parts.hairMat = hairMat;
+    parts.shoeMat = shoeMat;
+    applyLook(parts, look);
+  }
+  return parts;
+}
+
+// 꾸미기 적용 (모양 바꾸기)
+export function applyLook(parts, look) {
+  const l = cleanLook(look);
+  if (!parts.hairMat) return l;
+  parts.hairStyles.forEach((g, i) => { g.visible = i === l.h; });
+  parts.hairMat.color.set(LOOK_OPTIONS.hairColors[l.c]);
+  parts.shoeMat.color.set(LOOK_OPTIONS.shoeColors[l.s]);
+  if (parts.lookN !== l.n) {
+    parts.numberTex.userData.set(l.n);
+    parts.lookN = l.n;
+  }
+  parts.look = l;
+  return l;
 }
 
 // 걷기·점프·동작 애니메이션 (아바타와 연습 친구가 같이 씀)
@@ -141,9 +262,11 @@ export class Avatar {
     this.cfg = CONFIG.player;
     this.root = new THREE.Group();
     scene.add(this.root);
-    this.parts = buildBlockPerson();
+    this.parts = buildBlockPerson(SUIT_COLORS, DEFAULT_LOOK);
+    this.look = this.parts.look;
     this.model = this.parts.model;
     this.root.add(this.model);
+    this.fade = 1;
 
     const body = new CANNON.Body({
       mass: 55,
@@ -156,8 +279,9 @@ export class Avatar {
     body.addShape(new CANNON.Sphere(r), new CANNON.Vec3(0, r, 0));
     body.addShape(new CANNON.Sphere(r), new CANNON.Vec3(0, 0.8, 0));
     body.addShape(new CANNON.Sphere(r), new CANNON.Vec3(0, 1.32, 0));
+    // 시작 위치: 여러 명이 겹치지 않게 조금씩 흩어서
     const sp = this.cfg.spawn;
-    body.position.set(sp.x, sp.y, sp.z);
+    body.position.set(sp.x + (Math.random() - 0.5) * 3, sp.y, sp.z + (Math.random() - 0.5) * 3);
     body.collisionFilterGroup = 2; // 사람 그룹: 배구 네트는 지나갈 수 있음
     physics.world.addBody(body);
     this.body = body;
@@ -187,6 +311,39 @@ export class Avatar {
 
   get wearingFlags() {
     return this.parts.belt.visible;
+  }
+
+  setLook(look) {
+    this.look = applyLook(this.parts, look);
+  }
+
+  // 카메라가 아주 가까우면 내 아바타를 반투명하게 (앞을 가리지 않게)
+  setFade(a) {
+    a = Math.round(a * 20) / 20;
+    if (a === this.fade) return;
+    this.fade = a;
+    if (!this.fadeMats) {
+      // 다른 사람과 같이 쓰는 재질은 복사해서 내 것만 바꿈
+      this.fadeMats = [];
+      const copies = new Map();
+      this.model.traverse((m) => {
+        if (!m.isMesh) return;
+        let mat = m.material;
+        if (mat !== this.parts.hairMat && mat !== this.parts.shoeMat && !mat.map) {
+          if (!copies.has(mat)) copies.set(mat, mat.clone());
+          mat = copies.get(mat);
+          m.material = mat;
+        }
+        if (!this.fadeMats.includes(mat)) this.fadeMats.push(mat);
+      });
+    }
+    for (const mat of this.fadeMats) {
+      const tr = a < 1 || !!mat.map;
+      if (mat.transparent !== tr) mat.needsUpdate = true; // 불투명으로 만들어진 재질은 다시 준비해야 투명해짐
+      mat.transparent = tr;
+      mat.opacity = a;
+      mat.depthWrite = a >= 1 && !mat.map;
+    }
   }
   setWearingFlags(on) {
     this.parts.belt.visible = on;
@@ -374,7 +531,7 @@ export class Avatar {
 
   respawn() {
     const sp = this.cfg.spawn;
-    this.body.position.set(sp.x, sp.y + 1, sp.z);
+    this.body.position.set(sp.x + (Math.random() - 0.5) * 3, sp.y + 1, sp.z + (Math.random() - 0.5) * 3);
     this.body.velocity.set(0, 0, 0);
   }
 

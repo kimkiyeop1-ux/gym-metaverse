@@ -19,7 +19,7 @@
   -->
   <script>
     (function () {
-      var VERSION = '5-5';
+      var VERSION = '6-1';
       var MODULES = ['main', 'config', 'storage', 'physics', 'gym', 'courtLines',
                      'avatar', 'camera', 'input', 'joystick', 'items', 'badminton',
                      'flagFootball', 'game', 'hud', 'equipment', 'activities', 'storageArea', 'sound', 'effects', 'net', 'multiplayer', 'remoteAvatar'];
@@ -65,6 +65,7 @@
   <div id="hud-top">
     <div id="title" data-school-title>가상 체육관</div>
     <div class="hud-right">
+      <button id="btn-look" class="round-btn" aria-label="꾸미기">👕</button>
       <button id="btn-reset" class="pill-btn" aria-label="공 정리">🧺 정리</button>
       <button id="btn-sound" class="round-btn" aria-label="소리 끄기">🔊</button>
       <button id="btn-orient" class="pill-btn touch-only" aria-label="가로/세로 전환">📱 가로로</button>
@@ -109,6 +110,19 @@
   <div id="players-list" hidden></div>
   <div id="counter"></div>
   <div id="popup"></div>
+
+  <!-- 꾸미기 (👕 버튼) -->
+  <div id="look-panel" hidden>
+    <div class="look-head"><b>👕 꾸미기</b><button id="look-random" class="look-mini">🎲 아무거나</button></div>
+    <div class="look-row"><span>머리 모양</span><div class="look-chips" id="look-h"></div></div>
+    <div class="look-row"><span>머리색</span><div class="look-swatches" id="look-c"></div></div>
+    <div class="look-row"><span>신발</span><div class="look-swatches" id="look-s"></div></div>
+    <div class="look-row"><span>등번호</span>
+      <div class="look-num"><button id="look-minus" aria-label="번호 내리기">−</button><b id="look-n">7</b><button id="look-plus" aria-label="번호 올리기">+</button></div>
+    </div>
+    <p class="look-tip">화면을 드래그하면 아바타를 돌려 볼 수 있어요</p>
+    <button id="look-done">완료</button>
+  </div>
 
   <!-- 시작 화면 -->
   <div id="start">

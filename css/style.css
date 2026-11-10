@@ -496,3 +496,55 @@ body.mp #score { top: calc(84px + env(safe-area-inset-top)); }
   #btn-start { margin-top: 8px; padding: 9px 30px; font-size: 16px; }
   .card .hint { margin-top: 6px; }
 }
+
+/* ---------- 꾸미기 ---------- */
+#look-panel {
+  position: fixed;
+  right: calc(12px + env(safe-area-inset-right));
+  top: calc(56px + env(safe-area-inset-top));
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  width: min(300px, 44vw);
+  overflow-y: auto;
+  background: rgba(255, 255, 255, 0.96);
+  border-radius: 18px;
+  padding: 12px 14px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  touch-action: pan-y;
+}
+#look-panel[hidden] { display: none; }
+.look-head { display: flex; justify-content: space-between; align-items: center; font-size: 16px; }
+.look-mini {
+  border: none; background: #eef2fb; color: #1f2a5c; border-radius: 999px;
+  padding: 6px 10px; font-weight: 700; font-size: 13px; cursor: pointer;
+}
+.look-row > span { display: block; font-size: 13px; font-weight: 700; color: #5a6390; margin-bottom: 5px; }
+.look-chips, .look-swatches { display: flex; flex-wrap: wrap; gap: 6px; }
+.look-chips button {
+  border: 2px solid #dfe4f2; background: #fff; color: #1f2a5c; border-radius: 999px;
+  padding: 6px 11px; font-size: 14px; font-weight: 700; cursor: pointer;
+}
+.look-chips button.on { border-color: #1f2a5c; background: #1f2a5c; color: #fff; }
+.look-swatches button {
+  width: 32px; height: 32px; border-radius: 50%; border: 3px solid #fff;
+  box-shadow: 0 0 0 2px #dfe4f2; cursor: pointer; padding: 0;
+}
+.look-swatches button.on { box-shadow: 0 0 0 3px #1f2a5c; }
+.look-num { display: flex; align-items: center; gap: 14px; }
+.look-num button {
+  width: 40px; height: 40px; border-radius: 50%; border: none; background: #eef2fb;
+  color: #1f2a5c; font-size: 22px; font-weight: 800; cursor: pointer;
+}
+.look-num b { min-width: 36px; text-align: center; font-size: 24px; }
+.look-tip { margin: 0; font-size: 12px; color: #8a91b0; }
+#look-done {
+  margin-top: auto; border: none; background: #1f2a5c; color: #fff; border-radius: 12px;
+  padding: 11px; font-size: 16px; font-weight: 800; cursor: pointer;
+}
+body.looking #actions, body.looking #joystick, body.looking #key-hints,
+body.looking #reticle, body.looking #gauge, body.looking #counter { display: none !important; }
+@media (orientation: portrait) {
+  #look-panel { top: auto; left: calc(12px + env(safe-area-inset-left)); width: auto; max-height: 52vh; }
+}
