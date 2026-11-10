@@ -12,10 +12,32 @@
 // ============================================================
 export const MAX_PLAYERS = 30;
 
-// 방 코드: 글자·숫자·한글·-_ 만, 최대 12자. 비우면 '공용'
+// 방 코드: 글자·숫자·한글·-_ 만, 최대 10자. 비우면 '공용'
+// (경기장은 '방코드~종목' 이름의 따로 된 방 → 최대 13자… 가 되지 않게 10자로 제한. 보안 규칙의 방 이름 12자 제한)
 export function cleanRoomCode(s) {
-  const c = String(s || '').trim().replace(/[^0-9A-Za-z가-힣_-]/g, '').slice(0, 12);
+  const c = String(s || '').trim().replace(/[^0-9A-Za-z가-힣_-]/g, '').slice(0, 10);
   return c || '공용';
+}
+
+// 경기장 방 이름 (같은 방 코드 + 같은 종목끼리만 만남)
+export function matchRoomKey(room, code) {
+  return code ? `${room}~${code}` : room;
+}
+
+// Firebase 연결은 한 번만 (로비 ↔ 경기장을 오가도 같은 사람)
+let fbSession = null;
+async function firebaseSession(config) {
+  if (fbSession) return fbSession;
+  const fb = await import('firebase-lib');
+  const app = fb.initializeApp(config, 'gym-metaverse');
+  // 탭마다 따로 로그인 (같은 기기에서 탭 2개를 열어도 다른 사람으로 보이게)
+  const auth = fb.initializeAuth(app, { persistence: fb.inMemoryPersistence });
+  const cred = await fb.signInAnonymously(auth);
+  const db = fb.getDatabase(app);
+  fbSession = { fb, app, auth, db, uid: cred.user.uid, offset: 0 };
+  // 서버 시간 차이 (알림 순서·경기 시계용)
+  fb.onValue(fb.ref(db, '.info/serverTimeOffset'), (snap) => { fbSession.offset = snap.val() || 0; });
+  return fbSession;
 }
 
 const BAD_WORDS = ['시발', '씨발', 'ㅅㅂ', 'ㅆㅂ', '병신', 'ㅂㅅ', '개새', '좆', '존나', 'ㅈㄴ', '니애미', '느금', 'fuck', 'shit', 'bitch'];
@@ -35,7 +57,6 @@ export class FirebaseRoom {
   constructor(config) {
     this.config = config;
     this.handlers = { player: [], playerRemove: [], item: [], npc: [], event: [] };
-    this.offset = 0;
   }
 
   // 받는 쪽이 아직 준비되지 않았을 때 온 소식은 모아 뒀다가 전달
@@ -52,19 +73,16 @@ export class FirebaseRoom {
   }
 
   async join(room, name) {
-    const fb = await import('firebase-lib');
+    const ses = await firebaseSession(this.config);
+    this.ses = ses;
+    const fb = ses.fb;
     this.fb = fb;
-    const app = fb.initializeApp(this.config, 'gym-metaverse');
-    // 탭마다 따로 로그인 (같은 기기에서 탭 2개를 열어도 다른 사람으로 보이게)
-    const auth = fb.initializeAuth(app, { persistence: fb.inMemoryPersistence });
-    const cred = await fb.signInAnonymously(auth);
-    this.myId = cred.user.uid;
-    const db = fb.getDatabase(app);
+    this.myId = ses.uid;
+    const db = ses.db;
     this.db = db;
     this.base = fb.ref(db, `rooms/${room}`);
-
-    // 서버 시간 차이 (알림 순서용)
-    fb.onValue(fb.ref(db, '.info/serverTimeOffset'), (snap) => { this.offset = snap.val() || 0; });
+    this.unsubs = [];
+    const keep = (u) => this.unsubs.push(u);
 
     // 정원 확인
     const ps = await fb.get(fb.child(this.base, 'p'));
@@ -72,29 +90,42 @@ export class FirebaseRoom {
     if (count >= MAX_PLAYERS && !(ps.val() || {})[this.myId]) return { ok: false, reason: 'full' };
 
     this.meRef = fb.child(this.base, `p/${this.myId}`);
-    await fb.onDisconnect(this.meRef).remove();
+    this.onDis = fb.onDisconnect(this.meRef);
+    await this.onDis.remove();
     await fb.set(this.meRef, { n: name, s: '', t: fb.serverTimestamp() });
 
     const pRef = fb.child(this.base, 'p');
-    fb.onChildAdded(pRef, (s) => this.emit('player', s.key, s.val()));
-    fb.onChildChanged(pRef, (s) => this.emit('player', s.key, s.val()));
-    fb.onChildRemoved(pRef, (s) => this.emit('playerRemove', s.key));
+    keep(fb.onChildAdded(pRef, (s) => this.emit('player', s.key, s.val())));
+    keep(fb.onChildChanged(pRef, (s) => this.emit('player', s.key, s.val())));
+    keep(fb.onChildRemoved(pRef, (s) => this.emit('playerRemove', s.key)));
 
     const iRef = fb.child(this.base, 'i');
-    fb.onChildAdded(iRef, (s) => this.emit('item', Number(s.key), s.val()));
-    fb.onChildChanged(iRef, (s) => this.emit('item', Number(s.key), s.val()));
+    keep(fb.onChildAdded(iRef, (s) => this.emit('item', Number(s.key), s.val())));
+    keep(fb.onChildChanged(iRef, (s) => this.emit('item', Number(s.key), s.val())));
 
-    fb.onValue(fb.child(this.base, 'npc'), (s) => { if (s.exists()) this.emit('npc', s.val()); });
+    keep(fb.onValue(fb.child(this.base, 'npc'), (s) => { if (s.exists()) this.emit('npc', s.val()); }));
 
     // 입장한 뒤에 생긴 알림만 받기
-    const since = Date.now() + this.offset - 2000;
+    const since = Date.now() + ses.offset - 2000;
     const eQ = fb.query(fb.child(this.base, 'e'), fb.orderByChild('t'), fb.startAt(since));
-    fb.onChildAdded(eQ, (s) => this.emit('event', s.val(), s.key));
+    keep(fb.onChildAdded(eQ, (s) => this.emit('event', s.val(), s.key)));
     return { ok: true };
+  }
+
+  get offset() {
+    return this.ses ? this.ses.offset : 0;
   }
 
   now() {
     return Date.now() + this.offset;
+  }
+
+  // 로비에서: 종목별 경기장에 몇 명 있는지 (codes: ['bb', ...]) → cb(code, 명)
+  watchCounts(room, codes, cb) {
+    const fb = this.fb;
+    const offs = codes.map((code) => fb.onValue(fb.ref(this.db, `rooms/${matchRoomKey(room, code)}/p`),
+      (snap) => cb(code, snap.exists() ? Object.keys(snap.val()).length : 0), () => cb(code, 0)));
+    return () => offs.forEach((u) => u());
   }
 
   setMyState(s) {
@@ -132,7 +163,14 @@ export class FirebaseRoom {
   }
 
   leave() {
-    if (this.meRef) this.fb.remove(this.meRef);
+    for (const u of this.unsubs || []) u();
+    this.unsubs = [];
+    this.handlers = { player: [], playerRemove: [], item: [], npc: [], event: [] };
+    if (this.meRef) {
+      if (this.onDis) this.onDis.cancel().catch(() => {});
+      this.fb.remove(this.meRef).catch(() => {});
+      this.meRef = null;
+    }
   }
 }
 
@@ -173,7 +211,8 @@ export class LocalRoom {
         if (now - p.seen > 6000) { this.players.delete(id); this.emit('playerRemove', id); }
       }
     }, 2000);
-    window.addEventListener('pagehide', () => this.leave());
+    this.onHide = () => this.leave();
+    window.addEventListener('pagehide', this.onHide);
     return { ok: true };
   }
 
@@ -236,9 +275,17 @@ export class LocalRoom {
 
   cleanEvents() {}
 
+  watchCounts() {
+    return () => {};
+  }
+
   leave() {
     if (!this.ch) return;
     this.send({ k: 'bye', id: this.myId });
     clearInterval(this.beat);
+    this.ch.close();
+    this.ch = null;
+    window.removeEventListener('pagehide', this.onHide);
+    this.handlers = { player: [], playerRemove: [], item: [], npc: [], event: [] };
   }
 }

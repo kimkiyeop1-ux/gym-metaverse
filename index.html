@@ -19,10 +19,10 @@
   -->
   <script>
     (function () {
-      var VERSION = '6-1';
+      var VERSION = '7-1';
       var MODULES = ['main', 'config', 'storage', 'physics', 'gym', 'courtLines',
                      'avatar', 'camera', 'input', 'joystick', 'items', 'badminton',
-                     'flagFootball', 'game', 'hud', 'equipment', 'activities', 'storageArea', 'sound', 'effects', 'net', 'multiplayer', 'remoteAvatar'];
+                     'flagFootball', 'game', 'hud', 'equipment', 'activities', 'storageArea', 'sound', 'effects', 'net', 'multiplayer', 'remoteAvatar', 'match'];
       window.GYM_VERSION = VERSION;
       // 라이브러리는 저장소 안(js/vendor)에 포함: 외부 서버 없이 동작
       var imports = {
@@ -79,12 +79,14 @@
   <div id="help">
     <div class="pc-only">
       <b>WASD / 방향키</b> 이동 · <b>스페이스</b> 점프 · <b>마우스 드래그</b> 시점 · <b>휠</b> 확대·축소<br />
-      <b>E</b> 잡기·놓기·플래그 · <b>Q</b> 꾹 눌러 던지기 · <b>F</b> 차기·치기·스파이크 · <b>R</b> 토스
+      <b>E</b> 잡기·놓기·플래그 · <b>Q</b> 꾹 눌러 던지기 · <b>F</b> 차기·치기·스파이크 · <b>R</b> 토스<br />
+      벽 쪽 <b>색깔 발판</b>에 서면 종목별 경기장으로 갈 수 있어요
     </div>
     <div class="touch-only">
       <b>왼쪽</b> 조이스틱으로 이동 · <b>오른쪽</b> 드래그로 시점<br />
       <b>두 손가락</b>으로 확대·축소 · 기구 가까이 가면 동작 버튼이 나타나요<br />
-      <b>던지기</b>는 꾹 누르고 있다가 떼면 던져요
+      <b>던지기</b>는 꾹 누르고 있다가 떼면 던져요<br />
+      벽 쪽 <b>색깔 발판</b>에 서면 종목별 경기장으로 갈 수 있어요
     </div>
   </div>
 
@@ -111,6 +113,20 @@
   <div id="counter"></div>
   <div id="popup"></div>
 
+  <!-- 경기장: 점수판 · 남은 시간 · 경기 시작 · 나가기 -->
+  <div id="matchbar" hidden>
+    <div class="mb-row">
+      <span id="mb-title" class="mb-title"></span>
+      <span class="mb-team mb-red">빨강 <b id="mb-r">0</b></span>
+      <span id="mb-time" class="mb-time">5:00</span>
+      <span class="mb-team mb-blue"><b id="mb-b">0</b> 파랑</span>
+      <button id="btn-exit" class="mb-btn">🚪 나가기</button>
+    </div>
+    <div id="mb-info" class="mb-info"></div>
+    <button id="btn-match-start" class="mb-btn mb-go" hidden>▶ 경기 시작</button>
+  </div>
+  <div id="countdown"></div>
+
   <!-- 꾸미기 (👕 버튼) -->
   <div id="look-panel" hidden>
     <div class="look-head"><b>👕 꾸미기</b><button id="look-random" class="look-mini">🎲 아무거나</button></div>
@@ -135,7 +151,7 @@
         <label class="field"><span>닉네임</span>
           <input id="nickname" maxlength="8" placeholder="2~8글자" autocomplete="off" enterkeyhint="go" /></label>
         <label class="field"><span>방 코드</span>
-          <input id="roomcode" maxlength="12" placeholder="예: 1-3 (비우면 공용)" autocomplete="off" enterkeyhint="go" /></label>
+          <input id="roomcode" maxlength="10" placeholder="예: 1-3 (비우면 공용)" autocomplete="off" enterkeyhint="go" /></label>
         <p class="hint small">같은 방 코드를 넣은 친구끼리 만나요</p>
         <p id="join-error" class="error" hidden></p>
       </div>

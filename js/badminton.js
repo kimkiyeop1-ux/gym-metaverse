@@ -68,6 +68,7 @@ export class BadmintonNet {
     body.position.set(x, 0.001, z);
     physics.world.addBody(body);
     this.body = body;
+    this.world = physics.world;
     physics.world.addEventListener('preStep', () => {
       body.quaternion.set(0, 0, 0, 1);
       body.angularVelocity.set(0, 0, 0);
@@ -82,5 +83,21 @@ export class BadmintonNet {
   reset() {
     this.body.position.set(this.home.x, 0.001, this.home.z);
     this.body.velocity.set(0, 0, 0);
+  }
+
+  // 배드민턴 경기장에서만 놓임. 경기 중에는 밀려나지 않게 고정
+  setActive(on) {
+    const b = this.body, w = this.world;
+    if (on) {
+      this.reset();
+      b.type = CANNON.Body.STATIC;
+      b.mass = 0;
+      b.updateMassProperties();
+      if (!b.world) w.addBody(b);
+    } else if (b.world) {
+      w.removeBody(b);
+    }
+    this.group.visible = on;
+    this.update();
   }
 }

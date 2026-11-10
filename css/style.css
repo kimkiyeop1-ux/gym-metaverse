@@ -548,3 +548,53 @@ body.looking #reticle, body.looking #gauge, body.looking #counter { display: non
 @media (orientation: portrait) {
   #look-panel { top: auto; left: calc(12px + env(safe-area-inset-left)); width: auto; max-height: 52vh; }
 }
+
+/* ---------- 경기장 점수판 ---------- */
+#matchbar {
+  position: fixed;
+  top: calc(52px + env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  pointer-events: none;
+  z-index: 5;
+}
+#matchbar[hidden] { display: none; }
+.mb-row { display: flex; gap: 6px; align-items: center; }
+.mb-title {
+  background: rgba(31, 42, 92, 0.85); color: #fff; border-radius: 999px;
+  padding: 4px 10px; font-weight: 800; font-size: 13px;
+}
+.mb-team {
+  color: #fff; border-radius: 10px; padding: 3px 10px; font-weight: 800; font-size: 14px;
+  min-width: 72px; text-align: center; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+.mb-team b { font-size: 20px; }
+.mb-red { background: #e63946; }
+.mb-blue { background: #2a5bd7; }
+.mb-time {
+  background: rgba(255, 255, 255, 0.95); color: #1f2a5c; border-radius: 10px;
+  padding: 4px 10px; font-weight: 900; font-size: 18px; min-width: 64px; text-align: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2); font-variant-numeric: tabular-nums;
+}
+.mb-info {
+  background: rgba(255, 255, 255, 0.88); color: #1f2a5c; border-radius: 999px;
+  padding: 3px 12px; font-size: 12px; font-weight: 700; max-width: 80vw; text-align: center;
+}
+.mb-btn {
+  pointer-events: auto; border: none; border-radius: 999px; padding: 7px 14px;
+  background: rgba(255, 255, 255, 0.95); color: #1f2a5c; font-weight: 800; font-size: 14px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2); cursor: pointer;
+}
+.mb-btn[hidden] { display: none; }
+.mb-go { background: #2ec4b6; color: #fff; }
+#countdown {
+  position: fixed; left: 50%; top: 42%; transform: translate(-50%, -50%) scale(0.6);
+  font-size: 96px; font-weight: 900; color: #fff; text-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s;
+}
+#countdown.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+body.inmatch #score { display: none; }
