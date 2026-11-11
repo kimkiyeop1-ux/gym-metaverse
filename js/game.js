@@ -98,12 +98,14 @@ export class Game {
       }
       if (!acts.some((x) => x.key === 'E')) acts.push({ id: 'drop', label: '놓기', key: 'E' });
     } else {
-      // 공중에 뜬 배구공 근처: 점프 중이면 스파이크, 아니면 토스
+      // 떠 있는 배구공 근처: F 스파이크(자동 점프해서 때림), 손 닿는 공은 R 토스
+      const sp = this.pendingSpike ? null : this.findSpikeBall();
+      if (sp) acts.push({ id: 'spike', label: '스파\n이크', key: 'F', color: 'kick', target: sp });
       const air = this.findAirBall();
-      if (air && !a.grounded && air.def.spike) {
-        acts.push({ id: 'spike', label: '스파\n이크', key: 'F', color: 'kick', target: air });
-      } else if (air) {
-        acts.push({ id: 'toss', label: '토스', key: 'R', color: 'toss', target: air });
+      if (air) acts.push({ id: 'toss', label: '토스', key: 'R', color: 'toss', target: air });
+      // 배구 경기장 네트 앞: Q 블로킹
+      if (this.blockNet && Math.abs(pos.x - this.blockNet.x) < 1.8) {
+        acts.push({ id: 'block', label: '블로\n킹', key: 'Q', color: 'throw' });
       }
       if (!acts.some((x) => x.key === 'E')) {
         const g = this.findGrab();
@@ -198,6 +200,20 @@ export class Game {
     const dx = q.x - p.x, dz = q.z - p.z;
     const d = Math.hypot(dx, dz) || 1;
     return Math.acos(THREE.MathUtils.clamp((dx * this.fwd.x + dz * this.fwd.z) / d, -1, 1));
+  }
+
+  // 스파이크할 수 있는 공: 떠 있고(1.4m 이상) 2.8m 안
+  findSpikeBall() {
+    const p = this.avatar.position;
+    let best = null, bestD = 2.8;
+    for (const it of this.items.list) {
+      if (it.held || !it.def.spike) continue;
+      const b = it.body.position;
+      if (b.y < p.y + 1.4 || b.y > p.y + 4.5) continue;
+      const d = Math.hypot(b.x - p.x, b.z - p.z);
+      if (d < bestD) { bestD = d; best = it; }
+    }
+    return best;
   }
 
   findAirBall() {
@@ -345,7 +361,8 @@ export class Game {
         return;
       case 'lift': return this.lift(act.target);
       case 'toss': return this.toss(act.target || this.held);
-      case 'spike': return this.spike(act.target);
+      case 'spike': return this.startSpike(act.target);
+      case 'block': return this.startBlock();
       case 'hit': return this.hit();
       case 'rope': return this.rope.press();
       case 'spin': return this.hoop.press();
@@ -460,6 +477,8 @@ export class Game {
 
   // 물리 계산 후: 들고 있는 물건 위치 맞추기 (드리블 포함)
   postPhysics(dt = 1 / 60) {
+    this.updateSpike(dt);
+    this.updateBlock(dt);
     this.steerPass(dt);
     this.autoCatch();
     this.holdItem();
@@ -721,14 +740,135 @@ export class Game {
     this.items.launch(it, dir.x * 0.8, up, dir.z * 0.8);
   }
 
+  // ---------------- 스파이크·블로킹 ----------------
+  // 스파이크 버튼: 땅에 있으면 점프하고, 손이 공에 닿는 순간 자동으로 때림
+  startSpike(it) {
+    if (!it) return;
+    this.avatar.tryJump();
+    this.pendingSpike = { it, t: 0 };
+  }
+
+  updateSpike(dt) {
+    const ps = this.pendingSpike;
+    if (!ps) return;
+    const a = this.avatar, p = a.position, it = ps.it, b = it.body.position;
+    ps.t += dt;
+    if (it.held || ps.t > 1.1 || (ps.t > 0.2 && a.grounded)) { this.pendingSpike = null; return; }
+    // 공 쪽을 보며 손을 뻗음
+    const dx = b.x - p.x, dz = b.z - p.z, h = Math.hypot(dx, dz) || 1;
+    a.faceDirection(dx / h, dz / h);
+    const reach = Math.hypot(Math.max(0, h - 0.3), b.y - (p.y + 2.3));
+    if (reach < 1.05) {
+      this.pendingSpike = null;
+      this.spike(it);
+    }
+  }
+
   spike(it) {
     if (!it) return;
     this.claim(it);
-    const dir = this.faceAim();
+    const dir = this.spikeDir();
+    this.avatar.faceDirection(dir.x, dir.z);
     this.avatar.playAction('swing');
     this.sound.kick();
-    const big = it.type === 'bigvolley';
-    this.items.launch(it, dir.x * (big ? 8 : 15), big ? -1.5 : -4, dir.z * (big ? 8 : 15));
+    if (it.type === 'bigvolley') {
+      this.items.launch(it, dir.x * 8, -1.5, dir.z * 8);
+    } else {
+      const v = this.spikeVelocity(it, dir);
+      this.items.launch(it, v.x, v.y, v.z);
+    }
+    this.hud.popup('스파이크! 💥');
+    const b = it.body.position;
+    this.effects.sparkle(b.x, b.y, b.z);
+  }
+
+  // 때리는 방향: 카메라가 보는 쪽. 배구 경기장에서는 상대 코트 쪽으로 보정
+  spikeDir() {
+    const dir = this.aimDir(this.fwd).clone();
+    const net = this.blockNet;
+    const team = this.avatar.team;
+    if (net && team) {
+      const attack = team === 'r' ? 1 : -1; // 빨강은 +x 쪽 코트를 공격
+      if (dir.x * attack < 0.6) {
+        dir.x = attack * 0.6;
+        dir.z = Math.sign(dir.z || 1) * Math.min(Math.abs(dir.z), 0.8);
+      }
+      dir.y = 0;
+      dir.normalize();
+    }
+    return dir;
+  }
+
+  // 공이 (네트를 넘어) 땅에 꽂히는 속도. 네트에 걸릴 것 같으면 조금 높게
+  spikeVelocity(it, dir) {
+    const b = it.body.position, r = it.def.r, net = this.blockNet;
+    let D = 5;
+    let dn = -1; // 네트까지 거리 (방향 따라)
+    if (net && Math.abs(dir.x) > 0.05) {
+      dn = (net.x - b.x) / dir.x;
+      if (dn > 0) {
+        D = dn + 4;
+        // 상대 코트 끝을 넘지 않게
+        const maxD = (Math.sign(dir.x) * 8.5 - b.x) / dir.x;
+        D = Math.max(dn + 1, Math.min(D, maxD));
+      } else D = 4;
+    }
+    let vx = 0, vy = 0, vz = 0;
+    for (let s = 15; s >= 6; s -= 1.5) {
+      const t = D / s;
+      vy = (r - b.y + 0.5 * G * t * t) / t;
+      vx = dir.x * s;
+      vz = dir.z * s;
+      if (dn <= 0) break;
+      const tn = dn / s;
+      const hn = b.y + vy * tn - 0.5 * G * tn * tn;
+      if (hn > net.h + r + 0.08) break;
+    }
+    return { x: vx, y: vy, z: vz };
+  }
+
+  // 블로킹 버튼: 두 팔을 들고 점프. 그동안 손에 닿는 공은 상대 쪽으로 떨어뜨림
+  startBlock() {
+    this.avatar.tryJump();
+    this.avatar.playAction('block');
+    this.blocking = 0.75;
+    this.blockDone = false;
+  }
+
+  updateBlock(dt) {
+    if (!(this.blocking > 0)) return;
+    this.blocking -= dt;
+    if (this.blockDone) return;
+    const p = this.avatar.position;
+    for (const it of this.items.list) {
+      if (it.held || !it.def.spike) continue;
+      const b = it.body.position, v = it.body.velocity;
+      if (Math.hypot(b.x - p.x, b.z - p.z) > 0.85 + it.def.r) continue;
+      if (b.y < p.y + 1.5 || b.y > p.y + 3.2) continue;
+      // 손 쪽으로 오는 공만 (멈춰 있는 공은 그대로)
+      if (Math.hypot(v.x, v.z) < 1 && !it.remote) continue;
+      this.blockDone = true;
+      this.claim(it);
+      // 상대 코트 쪽(네트 너머)으로. 네트가 없으면 공이 온 쪽으로
+      const net = this.blockNet;
+      const sx = (net && Math.sign(net.x - p.x)) || -Math.sign(v.x) || 1;
+      // 몸과 겹치지 않게 손 위에 두고 떨어뜨림 (겹치면 물리 계산이 공을 튕겨 냄).
+      // 네트가 있으면 손이 네트 위로 넘어간 것처럼 네트 바로 너머·네트보다 높게 → 상대 코트로 떨어짐
+      // 진짜 블로킹처럼 네트 바로 앞(상대 코트)에 내리꽂음
+      if (net) {
+        it.body.position.set(net.x + sx * 0.2, Math.max(b.y, net.h + it.def.r + 0.12), b.z);
+        it.body.velocity.set(sx * 1.3, -6, v.z * 0.2);
+      } else {
+        it.body.position.set(p.x + sx * 0.6, Math.max(b.y, p.y + 2.05), b.z);
+        it.body.velocity.set(sx * 3, -2, v.z * 0.3);
+      }
+      it.body.wakeUp();
+      it.flying = true;
+      this.sound.pop();
+      this.hud.popup('블로킹! 🙌');
+      this.effects.sparkle(b.x, b.y, b.z);
+      return;
+    }
   }
 
   hit() {

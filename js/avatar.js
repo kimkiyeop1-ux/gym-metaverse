@@ -405,6 +405,16 @@ export class Avatar {
     this.heading = Math.atan2(x, z);
   }
 
+  // 땅에 있으면 점프 (스파이크·블로킹 버튼도 사용). 뛰었으면 true
+  tryJump() {
+    if (this.groundTimer <= 0 || this.jumpCooldown > 0) return false;
+    this.body.velocity.y = this.cfg.jumpSpeed;
+    this.groundTimer = 0;
+    this.grounded = false;
+    this.jumpCooldown = 0.25;
+    return true;
+  }
+
   applyInput(dt, moveDir, jump) {
     const v = this.body.velocity;
     const speed = this.cfg.walkSpeed * (this.charge > 0 ? 0.5 : 1);
@@ -416,12 +426,7 @@ export class Avatar {
     v.y -= this.cfg.extraGravity * dt;
 
     this.jumpCooldown -= dt;
-    if (jump && this.groundTimer > 0 && this.jumpCooldown <= 0) {
-      v.y = this.cfg.jumpSpeed;
-      this.groundTimer = 0;
-      this.grounded = false;
-      this.jumpCooldown = 0.25;
-    }
+    if (jump) this.tryJump();
 
     if (mag > 0.05) {
       const target = Math.atan2(moveDir.x, moveDir.z);
@@ -513,7 +518,7 @@ export class Avatar {
 
     if (this.action) {
       this.actionTime += dt;
-      const d = 0.3;
+      const d = this.action === 'block' ? 0.75 : 0.3;
       const k = Math.min(1, this.actionTime / d);
       const s = Math.sin(k * Math.PI);
       switch (this.action) {
@@ -533,6 +538,13 @@ export class Avatar {
           break;
         case 'pull':
           rArm.rotation.x = -1.4 * s;
+          break;
+        case 'block':
+          // 블로킹: 두 팔을 머리 위로 쭉
+          rArm.rotation.x = -3.05;
+          lArm.rotation.x = -3.05;
+          rArm.rotation.z = -0.12;
+          lArm.rotation.z = 0.12;
           break;
       }
       if (this.actionTime >= d) this.action = null;

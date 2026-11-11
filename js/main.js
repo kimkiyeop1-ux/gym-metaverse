@@ -177,6 +177,8 @@ function applySpaceLayout(code) {
   game.landmarks = lobby ? lobbyLandmarks : [];
   game.resettables = lobby ? [chukball] : [];
   game.setAutoRacket(code === 'bd');
+  // 배구 경기장: 네트(x = 0) 앞에서 블로킹, 스파이크는 네트를 넘겨 상대 코트로
+  game.blockNet = code === 'vb' ? { x: 0, h: CONFIG.equipment.volleyNetHeight } : null;
   document.getElementById('btn-reset').textContent = lobby ? '🧺 정리' : '🔄 공 놓기';
 }
 applySpaceLayout(null);
