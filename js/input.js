@@ -24,6 +24,9 @@ export class Input {
     this.pinchDist = 0;
     this.lookStartTime = 0;
     this.mouseId = null;
+    // PC 마우스 시점: 마우스를 움직이기만 해도 시점이 돌아감 (포인터 잠금, Esc 로 커서 꺼냄)
+    this.mouseLookEnabled = false; // main.js 가 게임 중일 때 켬
+    this.pointerLocked = false;
 
     this.bindKeyboard();
     this.bindPointer();
@@ -71,7 +74,26 @@ export class Input {
     const LOOK_SPEED_MOUSE = 0.005;
     const LOOK_SPEED_TOUCH = 0.008;
 
+    // 포인터 잠금 상태: 마우스 움직임 = 시점
+    const LOOK_SPEED_LOCK = 0.0026;
+    document.addEventListener('pointerlockchange', () => {
+      this.pointerLocked = document.pointerLockElement === c;
+      document.body.classList.toggle('mouselook', this.pointerLocked);
+    });
+    document.addEventListener('mousemove', (e) => {
+      if (!this.pointerLocked) return;
+      // 가끔 튀는 큰 값(브라우저 버그)은 무시
+      if (Math.abs(e.movementX) > 300 || Math.abs(e.movementY) > 300) return;
+      this.look.x += e.movementX * LOOK_SPEED_LOCK;
+      this.look.y += e.movementY * LOOK_SPEED_LOCK;
+    });
+
     c.addEventListener('pointerdown', (e) => {
+      // PC: 화면을 클릭하면 마우스 시점 다시 켜기
+      if (e.pointerType === 'mouse' && this.mouseLookEnabled && !this.pointerLocked && !this.isTouch) {
+        this.lockPointer();
+        return;
+      }
       if (e.pointerType === 'touch') {
         this.setTouchMode(true);
         const now = performance.now();
@@ -149,6 +171,22 @@ export class Input {
     c.addEventListener('contextmenu', (e) => e.preventDefault());
     // iOS 사파리 핀치 확대 방지
     document.addEventListener('gesturestart', (e) => e.preventDefault());
+  }
+
+  // 마우스 잡기 (클릭·키 입력 같은 사용자 동작 안에서만 됨)
+  lockPointer() {
+    const c = this.canvas;
+    if (this.isTouch || !c.requestPointerLock || this.pointerLocked) return;
+    try {
+      const r = c.requestPointerLock();
+      if (r && r.catch) r.catch(() => {});
+    } catch {
+      /* 지원 안 하는 브라우저: 드래그로 시점 이동 */
+    }
+  }
+
+  unlockPointer() {
+    if (this.pointerLocked && document.exitPointerLock) document.exitPointerLock();
   }
 
   pinchDistance() {
