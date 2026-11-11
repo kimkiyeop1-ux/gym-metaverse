@@ -10,7 +10,7 @@ import { Items } from './items.js';
 import { BadmintonNet } from './badminton.js';
 import { FlagBeltBox, PracticeFriend } from './flagFootball.js';
 import { Hud } from './hud.js';
-import { Game } from './game.js';
+import { Game, isThreePoint } from './game.js';
 import { VolleyballFixedNet, ChukballFrame, FutsalGoal } from './equipment.js';
 import { Kiosks, Match, SPORTS, SPORT_CODES } from './match.js';
 import { buildStorageArea, slotX, STORAGE_Z, NameTag } from './storageArea.js';
@@ -87,10 +87,13 @@ let mp = null; // 여러 명 접속 (입장할 때 연결)
 const sound = new Sound();
 const effects = new Effects(scene);
 const items = new Items(scene, physics, gym, {
-  onGoal: (hoop) => {
-    if (match) { match.hoopGoal(hoop); return; } // 경기장: 팀 점수
-    if (mp) { mp.sendGoal(hoop); return; } // 여러 명: 모두에게 알림 (알림으로 효과 표시)
-    hud.popup('골! 🏀');
+  onGoal: (hoop, it) => {
+    // 3점 라인 밖에서 쏜 슛이면 3점
+    const n = it && it.shotFrom && isThreePoint(it.shotFrom, hoop) ? 3 : 2;
+    if (it) it.shotFrom = null;
+    if (match) { match.hoopGoal(hoop, n); return; } // 경기장: 팀 점수
+    if (mp) { mp.sendGoal(hoop, n); return; } // 여러 명: 모두에게 알림 (알림으로 효과 표시)
+    hud.popup(n === 3 ? '3점 골! 🏀' : '골! 🏀');
     sound.goal();
     effects.confetti(hoop.x, hoop.y + 0.2, hoop.z);
   },
@@ -179,6 +182,7 @@ function applySpaceLayout(code) {
   game.setAutoRacket(code === 'bd');
   // 배구 경기장: 네트(x = 0) 앞에서 블로킹, 스파이크는 네트를 넘겨 상대 코트로
   game.blockNet = code === 'vb' ? { x: 0, h: CONFIG.equipment.volleyNetHeight } : null;
+  game.space = code;
   document.getElementById('btn-reset').textContent = lobby ? '🧺 정리' : '🔄 공 놓기';
 }
 applySpaceLayout(null);
