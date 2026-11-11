@@ -181,7 +181,9 @@ export class Multiplayer {
   // 바라보는 방향(fwd)에 있는 친구 중 패스 받을 사람. '패스!' 손든 친구는 더 넓게 찾음
   passTarget(pos, fwd) {
     let best = null, bestScore = Infinity;
+    const myTeam = this.avatar.team;
     for (const p of this.players.values()) {
+      if (myTeam && p.team !== myTeam) continue; // 경기 중에는 같은 팀에게만
       const dx = p.position.x - pos.x, dz = p.position.z - pos.z;
       const d = Math.hypot(dx, dz);
       if (d < 1.2 || d > 18) continue;
@@ -341,7 +343,8 @@ export class Multiplayer {
     switch (ev.k) {
       case 'goal': {
         const h = this.items.hoops[ev.h] || this.items.hoops[0];
-        this.hud.popup(ev.b === this.me ? '골! 🏀' : `${by} 골! 🏀`);
+        const pts = ev.n === 3 ? '3점 ' : '';
+        this.hud.popup(ev.b === this.me ? `${pts}골! 🏀` : `${by} ${pts}골! 🏀`);
         this.sound.goal();
         this.effects.confetti(h.x, h.y + 0.2, h.z);
         h.netWobble = 1;
@@ -385,8 +388,8 @@ export class Multiplayer {
     for (const e of this.entries) this.room.setItem(e.idx, { o: '', s: '', h: '' });
   }
 
-  sendGoal(hoop) {
-    this.room.sendEvent({ k: 'goal', h: this.items.hoops.indexOf(hoop) });
+  sendGoal(hoop, n = 2) {
+    this.room.sendEvent({ k: 'goal', h: this.items.hoops.indexOf(hoop), n });
   }
 
   // ---------------- 매 프레임 (물리 계산 뒤) ----------------

@@ -26,7 +26,7 @@ export const SPORTS = {
   bb: {
     name: '농구', icon: '🏀', color: '#f28c3c', ball: 'basketball',
     items: [['basketball', 0, 0]],
-    help: (t) => `${t === 'b' ? '무대 쪽' : '무대 반대편'} 골대에 넣으면 2점!`,
+    help: (t) => `${t === 'b' ? '무대 쪽' : '무대 반대편'} 골대 · 2점, 3점 라인 밖 3점 · Q 블락`,
     spawn: (team, i) => { const d = team === 'r' ? 1 : -1; const p = lineUp(i, -d * 3, d); return { ...p, heading: d * Math.PI / 2 }; },
     restart: () => ({ x: 0, z: 0 }),
   },
@@ -353,8 +353,8 @@ export class Match {
     else this.onEvent({ ...ev, b: 'me' });
   }
 
-  hoopGoal(hoop) {
-    this.point(hoop.x > 0 ? 'r' : 'b', 2); // +x 골대 = 빨강이 공격하는 골대
+  hoopGoal(hoop, n = 2) {
+    this.point(hoop.x > 0 ? 'r' : 'b', n); // +x 골대 = 빨강이 공격하는 골대, 3점 라인 밖이면 3점
   }
 
   onEvent(ev) {
@@ -367,7 +367,7 @@ export class Match {
         const n = Math.max(1, Math.min(3, Number(ev.n) || 1));
         const who = this.mp && ev.b !== this.mp.me ? this.mp.nameOf(ev.b) : '';
         const counted = this.playing;
-        this.hud.popup(counted ? `${TEAM_ICON[tm]} ${TEAM_NAME[tm]} +${n}${who ? ` (${who})` : ''}` : `${this.sport.icon} 골! (연습)`);
+        this.hud.popup(counted ? `${TEAM_ICON[tm]} ${TEAM_NAME[tm]} +${n}${n === 3 ? ' 3점 슛!' : ''}${who ? ` (${who})` : ''}` : `${this.sport.icon} ${n === 3 ? '3점 ' : ''}골! (연습)`);
         this.sound.goal();
         if (this.isHost && counted) {
           const st = { ...this.state };
@@ -401,6 +401,7 @@ export class Match {
         if (!it) return;
         if (this.game.held === it) { this.items.setHeld(it, false); this.game.clearHeld(); }
         if (this.mp) this.mp.claimItem(it);
+        it.shotFrom = null;
         const p = this.sport.restart(serve);
         const b = it.body;
         b.position.set(p.x, it.home.y + 0.02, p.z);

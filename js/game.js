@@ -11,7 +11,19 @@ import { SPORTS } from './match.js';
 //   친구 쪽을 보고 있으면 Q '패스'·F '차서 패스'가 친구에게 자동으로 날아가고,
 //   받는 친구는 자동으로 잡음(발 패스는 발 앞에 멈춤)
 const CHARGE_TIME = 1.1;      // 힘이 꽉 차는 시간(초)
-const SHOT_SWEET = [0.62, 0.78]; // 슛 게이지의 초록 구간
+// 슛 게이지의 초록 구간: 멀수록 좁아짐 (거리별 난이도)
+const THREE_PT_R = 6.75;   // 3점 라인 (림 중심에서)
+const THREE_PT_SIDE = 6.6; // 코너 3점 (사이드라인 쪽 직선 구간: |z| ≥ 6.6)
+function shotSweet(d) {
+  if (d < 3) return [0.55, 0.85];      // 골밑
+  if (d < THREE_PT_R) return [0.6, 0.8]; // 중거리
+  if (d < 8.5) return [0.65, 0.77];      // 3점
+  return [0.68, 0.75];                   // 장거리 3점
+}
+// 이 자리에서 쏘면 3점인지 (림 기준)
+export function isThreePoint(from, hoop) {
+  return Math.hypot(from.x - hoop.x, from.z - hoop.z) >= THREE_PT_R || Math.abs(from.z) >= THREE_PT_SIDE;
+}
 const G = 9.82;
 
 export class Game {
@@ -31,6 +43,8 @@ export class Game {
     this.fwd = new THREE.Vector3();
     this.right = new THREE.Vector3();
     this.shotTarget = null;
+    this.shotSweet = shotSweet(0);
+    this.shotThree = false;
     this.passTarget = null;
     this.passFlight = null; // 내가 보낸 패스 { it, target, foot, t, T, pinned }
     this.clock = 0;
@@ -89,8 +103,13 @@ export class Game {
           else this.passTarget = null;
         }
         const pt = this.passTarget;
+        if (this.shotTarget) {
+          const h = this.shotTarget;
+          this.shotSweet = shotSweet(Math.hypot(h.x - pos.x, h.z - pos.z));
+          this.shotThree = isThreePoint(pos, h);
+        }
         if (pt) acts.push({ id: 'pass', label: '패스', key: 'Q', color: 'throw', target: pt });
-        else acts.push({ id: 'throw', label: this.shotTarget ? '슛' : '던지기', key: 'Q', hold: true, color: 'throw' });
+        else acts.push({ id: 'throw', label: this.shotTarget ? (this.shotThree ? '3점\n슛' : '슛') : '던지기', key: 'Q', hold: true, color: 'throw' });
         if (held.def.toss) acts.push({ id: 'toss', label: '토스', key: 'R', color: 'toss' });
         if (held.def.kick) acts.push(pt
           ? { id: 'kickpass', label: '차서\n패스', key: 'F', color: 'kick', target: pt }
@@ -106,6 +125,10 @@ export class Game {
       // 배구 경기장 네트 앞: Q 블로킹
       if (this.blockNet && Math.abs(pos.x - this.blockNet.x) < 1.8) {
         acts.push({ id: 'block', label: '블로\n킹', key: 'Q', color: 'throw' });
+      }
+      // 농구 경기장: 근처에 친구가 든 공·날아가는 공이 있으면 Q 블락
+      if (this.space === 'bb' && !acts.some((x) => x.key === 'Q') && this.findBlockBall(3.2)) {
+        acts.push({ id: 'block', label: '블락', key: 'Q', color: 'throw' });
       }
       if (!acts.some((x) => x.key === 'E')) {
         const g = this.findGrab();
@@ -276,7 +299,8 @@ export class Game {
     const throwable = this.held && !this.held.def.racket;
     this.hud.setAim(!!throwable);
     if (this.charging) {
-      this.hud.setGauge(this.power, this.shotTarget ? SHOT_SWEET : null, this.shotTarget ? '초록에서 떼면 골!' : '힘');
+      this.hud.setGauge(this.power, this.shotTarget ? this.shotSweet : null,
+        this.shotTarget ? (this.shotThree ? '3점 슛! 초록에서 떼기' : '초록에서 떼면 골!') : '힘');
     } else {
       this.hud.setGauge(null);
     }
@@ -418,6 +442,7 @@ export class Game {
   // ---------------- 들기 ----------------
   // 여러 명 접속: 공을 만지면 내가 주인이 됨
   claim(it) {
+    if (it) it.shotFrom = null; // 다른 사람이 만지면 새 공격
     if (this.mp && it) this.mp.claimItem(it);
   }
 
@@ -664,6 +689,8 @@ export class Game {
     const start = this.v.set(a.position.x + dir.x * 0.3, a.position.y + 1.9 + it.def.r, a.position.z + dir.z * 0.3);
     it.body.position.set(start.x, start.y, start.z);
 
+    // 농구공: 쏜 자리 기억 (골이 들어가면 2점/3점 판단)
+    if (it.type === 'basketball') it.shotFrom = { x: a.position.x, z: a.position.z };
     if (this.shotTarget) {
       const vel = this.shotVelocity(start, this.shotTarget, power);
       this.clearHeld();
@@ -693,9 +720,10 @@ export class Game {
       v2 = denom > 0 ? (G * d * d) / denom : -1;
       if (v2 <= 0) theta += 0.08;
     }
-    const sweetMid = (SHOT_SWEET[0] + SHOT_SWEET[1]) / 2;
+    const sw = this.shotSweet;
+    const sweetMid = (sw[0] + sw[1]) / 2;
     let err = 0;
-    if (power < SHOT_SWEET[0] || power > SHOT_SWEET[1]) err = (power - sweetMid) * 0.35;
+    if (power < sw[0] || power > sw[1]) err = (power - sweetMid) * 0.35;
     const v = Math.sqrt(Math.max(v2, 1)) * (1 + err);
     return { x: (dx / d) * v * Math.cos(theta), y: v * Math.sin(theta), z: (dz / d) * v * Math.cos(theta) };
   }
@@ -835,10 +863,49 @@ export class Game {
     this.blockDone = false;
   }
 
+  // 농구 블락할 수 있는 공 (친구가 들고 있거나 날아가는 중), 가로 거리 range 안
+  findBlockBall(range) {
+    const p = this.avatar.position;
+    for (const it of this.items.list) {
+      if (it.type !== 'basketball' || it.held) continue;
+      const b = it.body.position;
+      if (Math.hypot(b.x - p.x, b.z - p.z) > range) continue;
+      if (it.remoteHolder || b.y > p.y + 1.2) return it;
+    }
+    return null;
+  }
+
+  // 농구 블락: 점프한 손에 닿은 슛을 쳐 냄
+  updateHoopBlock() {
+    const p = this.avatar.position;
+    for (const it of this.items.list) {
+      if (it.type !== 'basketball' || it.held || it.remoteHolder) continue;
+      const b = it.body.position, v = it.body.velocity;
+      if (Math.hypot(b.x - p.x, b.z - p.z) > 0.95 + it.def.r) continue;
+      if (b.y < p.y + 1.4 || b.y > p.y + 3.3) continue;
+      if (v.length() < 1.5) continue; // 멈춰 있는 공은 아님
+      this.blockDone = true;
+      this.claim(it); // 쏜 사람 공격은 끝 (3점 기록도 지움)
+      // 공이 날아온 쪽으로, 아래로 쳐 냄 (몸과 겹치지 않게 손 앞에 둠)
+      let hx = -v.x, hz = -v.z;
+      const hl = Math.hypot(hx, hz) || 1;
+      hx /= hl; hz /= hl;
+      it.body.position.set(p.x + hx * 0.6, Math.max(b.y, p.y + 2.1), p.z + hz * 0.6);
+      it.body.velocity.set(hx * 4 + (Math.random() - 0.5) * 2, -1.5, hz * 4 + (Math.random() - 0.5) * 2);
+      it.body.wakeUp();
+      it.flying = true;
+      this.sound.pop();
+      this.hud.popup('블락! 🖐️');
+      this.effects.sparkle(b.x, b.y, b.z);
+      return;
+    }
+  }
+
   updateBlock(dt) {
     if (!(this.blocking > 0)) return;
     this.blocking -= dt;
     if (this.blockDone) return;
+    if (this.space === 'bb') { this.updateHoopBlock(); return; }
     const p = this.avatar.position;
     for (const it of this.items.list) {
       if (it.held || !it.def.spike) continue;
