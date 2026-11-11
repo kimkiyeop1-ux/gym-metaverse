@@ -245,8 +245,16 @@ export class Multiplayer {
     this.makeLocal(e, true);
     e.owner = this.me;
     e.changedAt = performance.now();
+    e.claimedAt = e.changedAt;
     e.last = '';
     this.room.setItem(e.idx, { o: this.me, s: this.stateOf(e), h: '' });
+  }
+
+  // 이 공을 지금 계산하는 친구 (없으면 null)
+  ownerOf(it) {
+    const e = this.entries.find((x) => x.it === it);
+    if (!e || !e.owner || e.owner === this.me) return null;
+    return { player: this.players.get(e.owner), since: performance.now() - (e.ownedAt || 0) };
   }
 
   claimItem(it) {
@@ -305,12 +313,18 @@ export class Multiplayer {
     if (d.o === this.me) return; // 내가 보낸 것
     const s = String(d.s || '').split(',').map(Number);
     e.target = s.length >= 10 ? { x: s[0], y: s[1], z: s[2], qx: s[3], qy: s[4], qz: s[5], qw: s[6], vx: s[7], vy: s[8], vz: s[9] } : null;
+    // 방금(0.4초 안) 내가 가져간 공에 대한 늦게 온 예전 주인 소식은 무시하고 다시 알림 (마지막에 가져간 사람이 우선)
+    if (e.owner === this.me && d.o !== this.me && performance.now() - (e.claimedAt || 0) < 400) {
+      this.room.setItem(e.idx, { o: this.me, s: this.stateOf(e), h: e.it && e.it.held ? this.me : '' });
+      return;
+    }
     if (e.it && e.it.held) {
       // 동시에 잡은 경우: 들고 있는 내가 우선 → 다시 알림
       this.room.setItem(e.idx, { o: this.me, s: this.stateOf(e), h: this.me });
       return;
     }
     if (d.o && (this.players.has(d.o))) {
+      if (e.owner !== d.o) e.ownedAt = performance.now(); // 주인이 바뀐 시각 (뺏기 보호)
       e.owner = d.o;
       e.changedAt = performance.now();
       if (e.it) e.it.remoteHolder = d.h || null;
