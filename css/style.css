@@ -616,3 +616,13 @@ body.mouselook #scene { cursor: none; }
 #esc-hint kbd { background: #1f2a5c; color: #fff; border-radius: 4px; padding: 0 5px; font-family: inherit; }
 body.mouselook:not(.touch) #esc-hint { display: block; }
 body.inmatch #popup { top: 42%; z-index: 6; }
+/* 점수판: 좁은 화면에서도 글자가 두 줄로 깨지지 않게 */
+.mb-title, .mb-btn, .mb-team, .mb-time { white-space: nowrap; }
+@media (max-width: 900px) {
+  .mb-title { font-size: 12px; padding: 3px 8px; }
+  .mb-team { min-width: 58px; font-size: 12px; padding: 2px 8px; }
+  .mb-team b { font-size: 17px; }
+  .mb-time { font-size: 15px; min-width: 52px; padding: 3px 8px; }
+  .mb-btn { font-size: 12px; padding: 5px 10px; }
+  .mb-info { font-size: 11px; max-width: 62vw; }
+}

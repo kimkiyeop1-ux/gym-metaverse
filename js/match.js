@@ -21,12 +21,14 @@ function lineUp(i, frontX, dir, spreadZ = 2.4) {
 }
 
 const FUTSAL_X = 15.5; // 풋살 골라인
+// 휴대폰·태블릿이면 키 글자 대신 '버튼'으로 안내
+const isTouch = () => document.body.classList.contains('touch');
 
 export const SPORTS = {
   bb: {
     name: '농구', icon: '🏀', color: '#f28c3c', ball: 'basketball',
     items: [['basketball', 0, 0]],
-    help: (t) => `${t === 'b' ? '무대 쪽' : '무대 반대편'} 골대 · 2점, 3점 라인 밖 3점 · Q 블락`,
+    help: (t) => `${t === 'b' ? '무대 쪽' : '무대 반대편'} 골대 · 2점, 3점 라인 밖 3점 · ${isTouch() ? '블락 버튼' : 'Q 블락'}`,
     spawn: (team, i) => { const d = team === 'r' ? 1 : -1; const p = lineUp(i, -d * 3, d); return { ...p, heading: d * Math.PI / 2 }; },
     restart: () => ({ x: 0, z: 0 }),
   },
@@ -49,7 +51,7 @@ export const SPORTS = {
   bd: {
     name: '배드민턴', icon: '🏸', color: '#7ab8ff', ball: 'shuttle',
     items: [['shuttle', 9, -2.5]],
-    help: () => '상대 코트에 떨어지면 1점 · F 클리어 · Q 드롭 · R 헤어핀 · E 스매시',
+    help: () => (isTouch() ? '상대 코트에 떨어지면 1점 · 기술 버튼으로 치기' : '상대 코트에 떨어지면 1점 · F 클리어 · Q 드롭 · R 헤어핀 · E 스매시'),
     // 배드민턴 코트는 x = 9 를 가운데로, 네트가 z = 0 에 놓임 → 빨강은 -z 쪽
     spawn: (team, i) => {
       const d = team === 'r' ? 1 : -1;
