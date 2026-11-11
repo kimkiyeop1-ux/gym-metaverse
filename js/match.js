@@ -35,7 +35,7 @@ export const SPORTS = {
   fs: {
     name: '풋살', icon: '⚽', color: '#2ec4b6', ball: 'futsal',
     items: [['futsal', 0, 0]],
-    help: (t) => `${t === 'b' ? '무대 쪽' : '무대 반대편'} 골문에 넣으면 1점!`,
+    help: (t) => `${t === 'b' ? '무대 쪽' : '무대 반대편'} 골문 1점 · 공에 다가가면 드리블 · F 패스/차기 · Q 슛(꾹)`,
     spawn: (team, i) => { const d = team === 'r' ? 1 : -1; const p = lineUp(i, -d * 3, d); return { ...p, heading: d * Math.PI / 2 }; },
     restart: () => ({ x: 0, z: 0 }),
   },

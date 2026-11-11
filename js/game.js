@@ -147,7 +147,12 @@ export class Game {
       } else if (this.autoRacket && !acts.some((x) => x.key === 'F')) acts.push({ id: 'hit', label: '치기', key: 'F', color: 'kick' });
       if (!acts.some((x) => x.key === 'F')) {
         const kin = items.nearest(pos, 0.8, (it) => it.def.lift);
-        const kick = items.nearest(pos, 0.7, (it) => it.def.kick && it.body.position.y < 0.6 + it.def.r);
+        const kick = items.nearest(pos, this.space === 'fs' ? 0.95 : 0.7, (it) => it.def.kick && it.body.position.y < 0.6 + it.def.r);
+        // 풋살 경기장: 발 앞 공 + 상대 골문 쪽을 보면 Q 슛 (꾹 눌러 힘 모으기)
+        if (this.space === 'fs' && kick) {
+          const g = this.futsalGoal();
+          if (g && !acts.some((x) => x.key === 'Q')) acts.push({ id: 'fshoot', label: '슛', key: 'Q', hold: true, color: 'throw', target: kick });
+        }
         if (kin) acts.push({ id: 'lift', label: '띄우기', key: 'F', color: 'kick', target: kin });
         else if (kick && this.passTarget) acts.push({ id: 'kickpass', label: '차서\n패스', key: 'F', color: 'kick', target: this.passTarget, ball: kick });
         else if (kick) acts.push({ id: 'kick', label: '차기', key: 'F', color: 'kick', target: kick });
@@ -193,6 +198,7 @@ export class Game {
     for (const it of this.items.list) {
       if (it.held || it.busy || it.remoteHolder || !it.def.hold) continue;
       if (this.autoRacket && (it.def.shuttle || it.def.racket)) continue; // 배드민턴 경기장: 라켓으로 치기만
+      if (this.space === 'fs' && it.type === 'futsal') continue;            // 풋살 경기장: 손은 안 씀 (발로만)
       const b = it.body.position;
       if (b.y > p.y + 2.2) continue;
       const dx = b.x - p.x, dz = b.z - p.z;
@@ -306,9 +312,22 @@ export class Game {
       if (!stillHeld || !this.held) this.release();
     }
 
+    // 풋살 슛 힘 모으기
+    const fc = this.fsCharge;
+    if (fc) {
+      fc.power = Math.min(1, fc.power + dt / CHARGE_TIME);
+      const ball = fc.it, p = this.avatar.position, b = ball.body.position;
+      const lost = ball.held || ball.remote || Math.hypot(b.x - p.x, b.z - p.z) > 1.3;
+      if (lost) this.fsCharge = null;
+      else if (!input.isHeld(fc.token)) { this.fsCharge = null; this.footShot(ball, fc.power); }
+    }
+
     const throwable = this.held && !this.held.def.racket;
     this.hud.setAim(!!throwable);
-    if (this.charging) {
+    if (this.fsCharge) {
+      const g = this.futsalGoal();
+      this.hud.setGauge(this.fsCharge.power, g ? this.footSweet(g) : null, '초록에서 떼면 골!');
+    } else if (this.charging) {
       this.hud.setGauge(this.power, this.shotTarget ? this.shotSweet : null,
         this.shotTarget ? (this.shotThree ? '3점 슛! 초록에서 떼기' : '초록에서 떼면 골!') : '힘');
     } else {
@@ -384,6 +403,9 @@ export class Game {
         this.power = 0;
         return;
       case 'kick': return this.kick(act.target || this.held);
+      case 'fshoot':
+        this.fsCharge = { token, power: 0, it: act.target };
+        return;
       case 'pass': return this.passTo(this.held, act.target, false);
       case 'kickpass': return this.passTo(act.ball || this.held, act.target, true);
       case 'join':
@@ -513,6 +535,7 @@ export class Game {
 
   // 물리 계산 후: 들고 있는 물건 위치 맞추기 (드리블 포함)
   postPhysics(dt = 1 / 60) {
+    this.updateDribble(dt);
     this.updateSpike(dt);
     this.updateBlock(dt);
     this.steerPass(dt);
@@ -530,6 +553,7 @@ export class Game {
 
   passTo(it, target, foot) {
     if (!it || !target) return;
+    this.dribbleCool = 0.6;
     this.claim(it);
     const a = this.avatar;
     const p = a.position;
@@ -742,6 +766,7 @@ export class Game {
   // ---------------- 차기·띄우기·토스·스파이크·치기 ----------------
   kick(it) {
     if (!it) return;
+    this.dribbleCool = 0.6;
     this.claim(it);
     const a = this.avatar;
     const dir = this.faceAim();
@@ -753,6 +778,113 @@ export class Game {
     }
     const [fwd, up] = it.def.kick;
     this.items.launch(it, dir.x * fwd, up, dir.z * fwd);
+  }
+
+  // ---------------- 풋살: 드리블·슛 (빨강은 +x 골문 공격, 골라인 x = ±15.5, 골문 폭 3m·높이 2m) ----------------
+  // 공격할 골문 (바라보는 방향이 골문 쪽일 때만)
+  futsalGoal() {
+    const team = this.avatar.team;
+    const p = this.avatar.position;
+    const gx = team === 'b' ? -15.5 : team === 'r' ? 15.5 : (p.x >= 0 ? 15.5 : -15.5);
+    const d = Math.abs(gx - p.x);
+    if (d > 17) return null;
+    const ang = this.angleTo({ x: gx, z: 0 });
+    return ang < 1.0 ? { x: gx, z: 0, d } : null;
+  }
+
+  // 슛 게이지 초록 구간: 멀수록 좁음
+  footSweet(g) {
+    const d = g.d;
+    if (d < 5) return [0.45, 0.8];
+    if (d < 9) return [0.55, 0.78];
+    return [0.62, 0.76];
+  }
+
+  // 슛: 초록 구간이면 바라본 쪽 골문 구석으로 낮고 강하게. 약하면 힘없이, 세면 골대 위로·옆으로 빗나감
+  footShot(it, power) {
+    const g = this.futsalGoal() || { x: (this.avatar.team === 'b' ? -15.5 : 15.5), z: 0, d: 10 };
+    const sw = this.footSweet(g);
+    const a = this.avatar, p = a.position;
+    this.claim(it);
+    this.aimDir(this.fwd);
+    // 바라본 방향이 골라인과 만나는 z → 골포스트 안쪽으로
+    const t = Math.abs(this.fwd.x) > 0.05 ? (g.x - p.x) / this.fwd.x : 0;
+    let tz = THREE.MathUtils.clamp(p.z + this.fwd.z * Math.max(0, t), -1.2, 1.2);
+    let ty = 0.45;
+    let speed = 15 + power * 6;
+    if (power < sw[0]) {
+      speed = 7 + power * 10; // 힘없는 슛
+      ty = 0.2;
+    } else if (power > sw[1]) {
+      const over = power - sw[1];
+      ty = 2.3 + over * 6;                                      // 골대 위로
+      tz += (Math.random() < 0.5 ? -1 : 1) * (0.6 + over * 5);  // 옆으로도
+    }
+    const b = it.body.position;
+    const gxIn = g.x + Math.sign(g.x) * 0.3; // 골라인 조금 안쪽을 노림
+    const dist = Math.hypot(gxIn - b.x, tz - b.z);
+    const T = Math.max(0.15, dist / speed);
+    const vy = (ty - b.y + 0.5 * G * T * T) / T;
+    a.faceDirection((gxIn - b.x) / dist, (tz - b.z) / dist);
+    a.playAction('kick');
+    this.sound.kick();
+    this.dribbleCool = 0.6;
+    this.items.launch(it, ((gxIn - b.x) / dist) * speed, Math.min(vy, 14), ((tz - b.z) / dist) * speed);
+    this.hud.popup(power >= sw[0] && power <= sw[1] ? '슛! ⚽' : power < sw[0] ? '약한 슛' : '빗나감!');
+  }
+
+  // 드리블: 풋살 경기장에서 공이 발 앞에 있으면 걸을 때 공이 발 앞에 붙어 따라옴
+  updateDribble(dt) {
+    this.dribbleCool = Math.max(0, (this.dribbleCool || 0) - dt);
+    const was = this.dribbleBall;
+    this.dribbling = false;
+    this.dribbleBall = null;
+    this.dribbleStep(dt);
+    // 드리블 중에는 공이 사람 몸에 걸리지 않게 (돌아설 때 공이 몸에 막히지 않도록). 끝나면 원래대로
+    const now = this.dribbleBall;
+    if (was && was !== now && !was.held) was.body.collisionFilterMask = -1;
+    if (now) now.body.collisionFilterMask = 1;
+  }
+
+  dribbleStep(dt) {
+    if (this.space !== 'fs' || this.held || this.dribbleCool > 0) return;
+    const a = this.avatar;
+    if (!a.grounded) return;
+    const p = a.position;
+    a.forward(this.right);
+    let ball = null;
+    for (const it of this.items.list) if (it.type === 'futsal') ball = it;
+    if (!ball || ball.held || ball.remoteHolder) return;
+    const b = ball.body.position, r = ball.def.r;
+    if (b.y > r + 0.35) return;
+    const dx = b.x - p.x, dz = b.z - p.z;
+    const d = Math.hypot(dx, dz);
+    if (d > 0.95) return;
+    // 상대가 드리블하는 공: 아주 가까이 붙으면 뺏기 (주인이 바뀐 뒤 1.5초는 보호)
+    if (ball.remote) {
+      const o = this.mp && this.mp.ownerOf(ball);
+      const opp = o && o.player && o.player.team && o.player.team !== a.team;
+      if (!(opp && d < 0.65 && o.since > 1500)) return;
+      this.hud.popup('뺏었다! 🦶');
+      this.sound.pop();
+    }
+    this.claim(ball);
+    this.dribbling = true;
+    this.dribbleBall = ball;
+    const v = ball.body.velocity, av = a.body.velocity;
+    const tx = p.x + this.right.x * 0.55, tz = p.z + this.right.z * 0.55;
+    const moving = a.anim.moveAmount > 0.2;
+    const k = moving ? 7 : 4;
+    v.x = av.x + (tx - b.x) * k;
+    v.z = av.z + (tz - b.z) * k;
+    ball.body.angularVelocity.set(v.z / r, 0, -v.x / r); // 굴러가는 모양
+    ball.body.wakeUp();
+    // 걸을 때 톡톡 차는 모습
+    this.dribbleTouch = (this.dribbleTouch || 0) - dt;
+    if (moving && this.dribbleTouch <= 0) {
+      this.dribbleTouch = 0.55;
+      a.playAction('kick');
+    }
   }
 
   lift(it) {
