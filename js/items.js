@@ -270,6 +270,12 @@ export class Items {
       let lastHit = 0;
       body.addEventListener('collide', (e) => {
         item.guided = false; // 배드민턴 기술 비행: 어딘가에 닿으면 끝
+        // 셔틀콕은 바닥·네트에 닿으면 튀지 않고 거의 멈춤 (진짜 셔틀콕처럼)
+        if (item.def.shuttle && !item.held) {
+          const v = body.velocity;
+          v.x *= 0.15; v.z *= 0.15;
+          if (v.y > 0) v.y *= 0.15;
+        }
         if (!onImpact || item.held) return;
         const v = Math.abs(e.contact.getImpactVelocityAlongNormal());
         const now = performance.now();

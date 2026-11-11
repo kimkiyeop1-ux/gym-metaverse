@@ -954,20 +954,11 @@ export class Game {
   }
 
   // 때리는 방향: 카메라가 보는 쪽. 배구 경기장에서는 상대 코트 쪽으로 보정
+  // 팀과 상관없이 바라보는(카메라) 방향으로 (네트 쪽을 보면 네트를 넘길 높이는 자동 계산)
   spikeDir() {
     const dir = this.aimDir(this.fwd).clone();
-    const net = this.blockNet;
-    const team = this.avatar.team;
-    if (net && team) {
-      const attack = team === 'r' ? 1 : -1; // 빨강은 +x 쪽 코트를 공격
-      if (dir.x * attack < 0.6) {
-        dir.x = attack * 0.6;
-        dir.z = Math.sign(dir.z || 1) * Math.min(Math.abs(dir.z), 0.8);
-      }
-      dir.y = 0;
-      dir.normalize();
-    }
-    return dir;
+    dir.y = 0;
+    return dir.normalize();
   }
 
   // 공이 (네트를 넘어) 땅에 꽂히는 속도. 네트에 걸릴 것 같으면 조금 높게
@@ -994,6 +985,10 @@ export class Game {
       const tn = dn / s;
       const hn = b.y + vy * tn - 0.5 * G * tn * tn;
       if (hn > net.h + r + 0.08) break;
+      if (s - 1.5 < 6) {
+        // 공이 너무 낮아 내리꽂을 수 없으면: 네트를 살짝 넘기는 높이로 (밀어 넣기)
+        vy = (net.h + r + 0.15 - b.y + 0.5 * G * tn * tn) / tn;
+      }
     }
     return { x: vx, y: vy, z: vz };
   }
@@ -1101,11 +1096,10 @@ export class Game {
     const a = this.avatar, p = a.position;
     const b = it.body.position;
     const NET_TOP = 1.524, CX = 9, HALF_W = 3.05, HALF_L = 6.7;
-    // 상대 코트 방향: 빨강은 -z 쪽에 서서 +z 로 침. 팀이 없으면 내가 선 쪽의 반대편
-    const team = a.team;
-    const s = team === 'r' ? 1 : team === 'b' ? -1 : (p.z < 0 ? 1 : -1);
-    // 좌우: 카메라가 보는 방향으로 조금씩
+    // 앞뒤: 팀과 상관없이 바라보는(카메라) 방향 쪽 코트로 (네트 z = 0 기준)
     this.aimDir(this.fwd);
+    const s = this.fwd.z >= 0 ? 1 : -1;
+    // 좌우: 카메라가 보는 방향으로 조금씩
     const side = THREE.MathUtils.clamp(this.fwd.x * 3.2, -1, 1) * (HALF_W - 0.5);
     const depth = { clear: HALF_L - 0.7, drop: 1.3, hairpin: 0.45, smash: 3.6 }[kind];
     const tx = THREE.MathUtils.clamp(CX + side, CX - HALF_W + 0.3, CX + HALF_W - 0.3);
