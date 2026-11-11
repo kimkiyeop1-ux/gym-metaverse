@@ -483,7 +483,7 @@ export class Game {
   // ---------------- 들기 ----------------
   // 여러 명 접속: 공을 만지면 내가 주인이 됨
   claim(it) {
-    if (it) it.shotFrom = null; // 다른 사람이 만지면 새 공격
+    if (it) { it.shotFrom = null; it.throwFrom = null; } // 다른 사람이 만지면 새 공격
     if (this.mp && it) this.mp.claimItem(it);
   }
 
@@ -735,6 +735,7 @@ export class Game {
 
     // 농구공: 쏜 자리 기억 (골이 들어가면 2점/3점 판단)
     if (it.type === 'basketball') it.shotFrom = { x: a.position.x, z: a.position.z };
+    it.throwFrom = { x: a.position.x, z: a.position.z }; // 던진 자리 (츄크볼 금지 구역 반칙 판정)
     if (this.shotTarget) {
       const vel = this.shotVelocity(start, this.shotTarget, power);
       this.clearHeld();
@@ -777,6 +778,7 @@ export class Game {
     if (!it) return;
     this.dribbleCool = 0.6;
     this.claim(it);
+    it.throwFrom = { x: this.avatar.position.x, z: this.avatar.position.z };
     const a = this.avatar;
     const dir = this.faceAim();
     a.playAction('kick');
@@ -816,6 +818,7 @@ export class Game {
     a.playAction('throw');
     this.sound.throw();
     const start = this.v.set(a.position.x + (dx0 / d0) * 0.35, a.position.y + 1.6, a.position.z + (dz0 / d0) * 0.35);
+    it.throwFrom = { x: a.position.x, z: a.position.z };
     this.clearHeld();
     it.body.position.set(start.x, start.y, start.z);
     const dx = c.x - start.x, dz = c.z - start.z, d = Math.hypot(dx, dz);

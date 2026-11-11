@@ -70,8 +70,13 @@ SPORTS.cb = {
   items: [['dodgeball', 0, 0]],
   help: () => `${document.body.classList.contains('touch') ? '슛 버튼' : 'Q 슛'}(양쪽 골대) · 튄 공이 바닥=1점 · 상대가 잡으면 수비`,
   spawn: (team, i) => { const d = team === 'r' ? 1 : -1; const p = lineUp(i, -d * 3, d); return { ...p, heading: d * Math.PI / 2 }; },
-  restart: () => ({ x: 0, z: 0 }),
+  // 다시 시작: 공을 받는 팀 쪽 코트에 (빨강 = -x 쪽)
+  restart: (team) => ({ x: team === 'b' ? 4 : -4, z: 0 }),
 };
+// 이 자리가 츄크볼 금지 구역 안인지 (골대에서 3m)
+export function inChukZone(x, z) {
+  return Math.min(Math.hypot(x - CHUK.frameX, z), Math.hypot(x + CHUK.frameX, z)) < CHUK.zone;
+}
 export const SPORT_CODES = Object.keys(SPORTS);
 
 // ------------------------------------------------------------
@@ -365,9 +370,13 @@ export class Match {
   }
 
   // 츄크볼: 내가 계산 중인 공이 골대 그물에 맞음 → 모두에게 알림 (슛한 팀 = 마지막에 만진 나의 팀)
-  chukBounce() {
+  chukBounce(it) {
     if (this.code !== 'cb') return;
-    const ev = { k: 'cbb', tm: this.avatar.team || 'r' };
+    // 금지 구역 안에서 던진 공이면 반칙 (점수 없음, 공은 상대 팀에게)
+    const from = it && it.throwFrom;
+    if (it) it.throwFrom = null;
+    const foul = from && inChukZone(from.x, from.z);
+    const ev = { k: foul ? 'cbfoul' : 'cbb', tm: this.avatar.team || 'r' };
     if (this.mp) this.mp.room.sendEvent(ev);
     else this.onEvent(ev);
   }
@@ -412,6 +421,15 @@ export class Match {
       case 'cbb': // 츄크볼: 공이 골대 그물에 맞고 튐 (tm = 슛한 팀)
         this.rebound = { tm: ev.tm === 'b' ? 'b' : 'r', at: performance.now() };
         break;
+      case 'cbfoul': {
+        this.rebound = null;
+        const tm = ev.tm === 'b' ? 'b' : 'r';
+        this.hud.popup('⛔ 금지 구역 반칙!');
+        this.hud.toast(`${TEAM_ICON[tm]} ${TEAM_NAME[tm]} 팀이 금지 구역 안에서 던졌어요 → 공은 ${TEAM_ICON[other(tm)]} ${TEAM_NAME[other(tm)]} 팀에게`);
+        this.sound.fail();
+        if (this.isHost && this.playing) this.resetBall(other(tm), 1200);
+        break;
+      }
       case 'cbsave':
         this.rebound = null;
         this.hud.popup(`🧤 수비 성공!${this.mp && ev.b !== this.mp.me ? ` (${this.mp.nameOf(ev.b)})` : ''}`);
@@ -503,7 +521,7 @@ export class Match {
       this.rebound = null;
       if (!this.playing) { this.hud.popup('🥅 좋은 슛! (연습)'); return; }
       const inCourt = Math.abs(b.x) <= CHUK.halfL && Math.abs(b.z) <= CHUK.halfW;
-      const inZone = Math.min(Math.hypot(b.x - CHUK.frameX, b.z), Math.hypot(b.x + CHUK.frameX, b.z)) < CHUK.zone;
+      const inZone = inChukZone(b.x, b.z);
       this.point(inCourt && !inZone ? rb.tm : other(rb.tm), 1);
     } else if (this.code === 'fs') {
       if (Math.abs(b.x) < FUTSAL_X - 1.5) this.goalArmed = true;

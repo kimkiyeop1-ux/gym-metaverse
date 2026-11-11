@@ -143,7 +143,7 @@ for (const f of cbFrames) {
     effects.ring(p.x + f.normal.x * 0.05, 0.75, p.z, f.normal);
     // 내가 계산 중인 공이 그물에 맞음 → 츄크볼 득점 판정 시작
     const it = ballBody.userData && ballBody.userData.item;
-    if (match && it && !it.remote) match.chukBounce();
+    if (match && it && !it.remote) match.chukBounce(it);
   };
   f.setActive(false);
   const side = Math.sign(f.normal.x); // 반원은 골대 앞쪽(코트 쪽)
