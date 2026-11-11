@@ -615,3 +615,4 @@ body.mouselook #scene { cursor: none; }
 }
 #esc-hint kbd { background: #1f2a5c; color: #fff; border-radius: 4px; padding: 0 5px; font-family: inherit; }
 body.mouselook:not(.touch) #esc-hint { display: block; }
+body.inmatch #popup { top: 42%; z-index: 6; }

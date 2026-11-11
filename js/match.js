@@ -49,7 +49,7 @@ export const SPORTS = {
   bd: {
     name: '배드민턴', icon: '🏸', color: '#7ab8ff', ball: 'shuttle',
     items: [['shuttle', 9, -2.5]],
-    help: () => '셔틀콕이 상대 코트에 떨어지면 1점! 서브: 셔틀콕 옆에서 F',
+    help: () => '상대 코트에 떨어지면 1점 · F 클리어 · Q 드롭 · R 헤어핀 · E 스매시',
     // 배드민턴 코트는 x = 9 를 가운데로, 네트가 z = 0 에 놓임 → 빨강은 -z 쪽
     spawn: (team, i) => {
       const d = team === 'r' ? 1 : -1;

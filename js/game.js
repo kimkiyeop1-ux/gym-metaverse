@@ -134,7 +134,17 @@ export class Game {
         const g = this.findGrab();
         if (g) acts.push({ id: 'grab', label: '잡기', key: 'E', target: g });
       }
-      if (this.autoRacket && !acts.some((x) => x.key === 'F')) acts.push({ id: 'hit', label: '치기', key: 'F', color: 'kick' });
+      // 배드민턴 경기장: 셔틀콕이 닿는 거리면 기술 버튼 (F 하이클리어 · Q 드롭 · R 헤어핀 · E 스매시)
+      if (this.space === 'bd') {
+        const sh = this.findShuttle();
+        if (sh) {
+          const b = sh.body.position;
+          acts.push({ id: 'clear', label: '하이\n클리어', key: 'F', color: 'kick', target: sh });
+          acts.push({ id: 'dropshot', label: '드롭', key: 'Q', color: 'throw', target: sh });
+          if (Math.abs(pos.z) < 2.6 && b.y < pos.y + 1.5) acts.push({ id: 'hairpin', label: '헤어핀', key: 'R', color: 'toss', target: sh });
+          if (b.y > pos.y + 1.9) acts.push({ id: 'smash', label: '스매시', key: 'E', color: 'kick', target: sh });
+        }
+      } else if (this.autoRacket && !acts.some((x) => x.key === 'F')) acts.push({ id: 'hit', label: '치기', key: 'F', color: 'kick' });
       if (!acts.some((x) => x.key === 'F')) {
         const kin = items.nearest(pos, 0.8, (it) => it.def.lift);
         const kick = items.nearest(pos, 0.7, (it) => it.def.kick && it.body.position.y < 0.6 + it.def.r);
@@ -388,6 +398,7 @@ export class Game {
       case 'spike': return this.startSpike(act.target);
       case 'block': return this.startBlock();
       case 'hit': return this.hit();
+      case 'clear': case 'dropshot': case 'hairpin': case 'smash': return this.stroke(act.id === 'dropshot' ? 'drop' : act.id, act.target);
       case 'rope': return this.rope.press();
       case 'spin': return this.hoop.press();
       case 'roll': return this.rollHoop();
@@ -936,6 +947,69 @@ export class Game {
       this.effects.sparkle(b.x, b.y, b.z);
       return;
     }
+  }
+
+  // ---------------- 배드민턴 기술 (배드민턴 경기장: 네트 z = 0, 코트 가운데 x = 9) ----------------
+  findShuttle() {
+    const p = this.avatar.position;
+    let best = null, bestD = 1.9;
+    for (const it of this.items.list) {
+      if (!it.def.shuttle || it.held) continue;
+      const b = it.body.position;
+      if (b.y > p.y + 3.4) continue;
+      const d = Math.hypot(b.x - p.x, b.z - p.z);
+      if (d < bestD) { bestD = d; best = it; }
+    }
+    return best;
+  }
+
+  // kind: clear(높고 길게) · drop(네트 앞에 뚝) · hairpin(네트에 붙여 살짝) · smash(빠르게 내리꽂기)
+  stroke(kind, it) {
+    if (!it) return;
+    const a = this.avatar, p = a.position;
+    const b = it.body.position;
+    const NET_TOP = 1.524, CX = 9, HALF_W = 3.05, HALF_L = 6.7;
+    // 상대 코트 방향: 빨강은 -z 쪽에 서서 +z 로 침. 팀이 없으면 내가 선 쪽의 반대편
+    const team = a.team;
+    const s = team === 'r' ? 1 : team === 'b' ? -1 : (p.z < 0 ? 1 : -1);
+    // 좌우: 카메라가 보는 방향으로 조금씩
+    this.aimDir(this.fwd);
+    const side = THREE.MathUtils.clamp(this.fwd.x * 3.2, -1, 1) * (HALF_W - 0.5);
+    const depth = { clear: HALF_L - 0.7, drop: 1.3, hairpin: 0.45, smash: 3.6 }[kind];
+    const tx = THREE.MathUtils.clamp(CX + side, CX - HALF_W + 0.3, CX + HALF_W - 0.3);
+    const tz = s * depth;
+    const r = it.def.r;
+    // 라켓 앞에서 출발 (몸과 겹친 채 날아가면 물리 계산이 튕겨 내 궤도가 틀어짐)
+    {
+      const dx = tx - p.x, dz = tz - p.z, dl = Math.hypot(dx, dz) || 1;
+      const sy = THREE.MathUtils.clamp(b.y, 0.35, p.y + 2.7);
+      it.body.position.set(p.x + (dx / dl) * 0.6, sy, p.z + (dz / dl) * 0.6);
+      it.body.velocity.set(0, 0, 0);
+    }
+    const dist = Math.hypot(tx - b.x, tz - b.z);
+    let T = { clear: 1.7, drop: 1.15, hairpin: 0.9, smash: Math.max(0.32, dist / 17) }[kind];
+    // 네트를 넘을 때까지 시간을 늘려 궤도를 높임
+    let vx, vy, vz;
+    for (let i = 0; i < 12; i++) {
+      vx = (tx - b.x) / T;
+      vz = (tz - b.z) / T;
+      vy = (r - b.y + 0.5 * G * T * T) / T;
+      if (Math.sign(vz) !== s || (b.z - 0) * s > 0) break; // 이미 네트 너머면 검사 안 함
+      const tn = (0 - b.z) / vz;
+      const hn = b.y + vy * tn - 0.5 * G * tn * tn;
+      if (hn > NET_TOP + 0.18) break;
+      T += 0.08;
+    }
+    this.claim(it);
+    if (kind === 'smash') a.tryJump();
+    a.faceDirection(0, s);
+    a.playAction('swing');
+    if (kind === 'smash') this.sound.kick(); else this.sound.throw();
+    this.items.launch(it, vx, vy, vz);
+    it.guided = true;
+    const name = { clear: '하이클리어', drop: '드롭', hairpin: '헤어핀', smash: '스매시! 💥' }[kind];
+    this.hud.popup(name);
+    if (kind === 'smash') this.effects.sparkle(b.x, b.y, b.z);
   }
 
   hit() {
