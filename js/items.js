@@ -269,6 +269,7 @@ export class Items {
       // 부딪힐 때 소리 (너무 자주 나지 않게 0.08초 간격)
       let lastHit = 0;
       body.addEventListener('collide', (e) => {
+        item.guided = false; // 배드민턴 기술 비행: 어딘가에 닿으면 끝
         if (!onImpact || item.held) return;
         const v = Math.abs(e.contact.getImpactVelocityAlongNormal());
         const now = performance.now();
@@ -291,7 +292,8 @@ export class Items {
       if (it.held || it.remote || it.body.sleepState === CANNON.Body.SLEEPING) continue;
       const b = it.body, v = b.velocity;
       const speed = v.length();
-      if (it.def.shuttle && speed > 0.01) {
+      // (배드민턴 기술로 친 셔틀콕은 계산한 궤도대로 날아가게 공기저항을 잠시 끔)
+      if (it.def.shuttle && speed > 0.01 && !it.guided) {
         // 공기저항 ∝ 속도² (종단 속도 약 6.8m/s)
         const c = (b.mass * 9.82) / (6.8 * 6.8);
         b.applyForce(new CANNON.Vec3(-c * speed * v.x, -c * speed * v.y, -c * speed * v.z));
