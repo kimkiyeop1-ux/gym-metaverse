@@ -284,6 +284,8 @@ function openLook() {
   camCtl.distance = 2.6;
   renderLookPanel();
   game.showGrabMark(null);
+  input.mouseLookEnabled = false;
+  input.unlockPointer(); // 꾸미기 버튼을 누를 수 있게 커서 꺼냄
   lookPanel.hidden = false;
   document.body.classList.add('looking');
 }
@@ -295,6 +297,8 @@ function closeLook() {
   camCtl.distance = lookSaved.distance;
   lookPanel.hidden = true;
   document.body.classList.remove('looking');
+  input.mouseLookEnabled = true;
+  input.lockPointer();
 }
 document.getElementById('btn-look').addEventListener('click', () => (lookOpen ? closeLook() : openLook()));
 document.getElementById('look-done').addEventListener('click', closeLook);
@@ -465,6 +469,9 @@ function enterGame() {
   startScreen.classList.add('hidden');
   document.body.classList.add('playing');
   running = true;
+  // PC: 바로 마우스 시점 (입장하기 클릭이 '사용자 동작'이라 여기서 잡을 수 있음)
+  input.mouseLookEnabled = true;
+  if (!input.isTouch) input.lockPointer();
   if (!storage.get('help_seen', false)) {
     document.getElementById('help').classList.add('show');
     storage.set('help_seen', true);
@@ -609,7 +616,7 @@ function frame() {
   kiosks.update(dt);
 
   // 앞으로 걸을 때는 카메라가 천천히 등 뒤로
-  if (!input.dragging && m.y > 0.3) camCtl.followHeading(avatar.heading, m.y, dt);
+  if (!input.dragging && !input.pointerLocked && m.y > 0.3) camCtl.followHeading(avatar.heading, m.y, dt);
   camCtl.update(dt, avatar.position);
   // 카메라가 아주 가까우면 내 아바타를 반투명하게 (앞이 가리지 않게)
   avatar.setFade(THREE.MathUtils.clamp((camCtl.currentDistance - 0.7) / 0.9, 0.25, 1));

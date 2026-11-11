@@ -598,3 +598,20 @@ body.looking #reticle, body.looking #gauge, body.looking #counter { display: non
 }
 #countdown.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 body.inmatch #score { display: none; }
+
+/* ---------- PC 마우스 시점 안내 ---------- */
+#mouse-hint {
+  position: fixed; left: 50%; top: 50%; transform: translate(-50%, 40px);
+  background: rgba(31, 42, 92, 0.85); color: #fff; border-radius: 999px;
+  padding: 7px 14px; font-size: 14px; font-weight: 700; pointer-events: none;
+  display: none;
+}
+body.playing:not(.mouselook):not(.looking):not(.touch) #mouse-hint { display: block; }
+body.mouselook #scene { cursor: none; }
+#esc-hint {
+  position: fixed; right: calc(12px + env(safe-area-inset-right)); bottom: 12px;
+  background: rgba(255, 255, 255, 0.85); color: #1f2a5c; border-radius: 999px;
+  padding: 4px 10px; font-size: 12px; font-weight: 700; pointer-events: none; display: none;
+}
+#esc-hint kbd { background: #1f2a5c; color: #fff; border-radius: 4px; padding: 0 5px; font-family: inherit; }
+body.mouselook:not(.touch) #esc-hint { display: block; }
