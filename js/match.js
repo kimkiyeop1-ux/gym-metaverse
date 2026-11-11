@@ -63,13 +63,22 @@ export const SPORTS = {
     inCourt: (x, z) => Math.abs(x - 9) <= 3.1 && Math.abs(z) <= 6.75,
   },
 };
+// 츄크볼: 양쪽 끝 골대(x = ±12, 가운데를 바라봄), 골대 앞 반지름 3m 금지 구역, 코트 = 농구 코트(±14 × ±7.5)
+export const CHUK = { frameX: 12, zone: 3, halfL: 14, halfW: 7.5 };
+SPORTS.cb = {
+  name: '츄크볼', icon: '🥅', color: '#ff7f50', ball: 'dodgeball',
+  items: [['dodgeball', 0, 0]],
+  help: () => `${document.body.classList.contains('touch') ? '슛 버튼' : 'Q 슛'}(양쪽 골대) · 튄 공이 바닥=1점 · 상대가 잡으면 수비`,
+  spawn: (team, i) => { const d = team === 'r' ? 1 : -1; const p = lineUp(i, -d * 3, d); return { ...p, heading: d * Math.PI / 2 }; },
+  restart: () => ({ x: 0, z: 0 }),
+};
 export const SPORT_CODES = Object.keys(SPORTS);
 
 // ------------------------------------------------------------
 //  로비의 경기 발판 + 간판 (+z 벽 쪽)
 // ------------------------------------------------------------
 const KIOSK_Z = 9.2;
-const KIOSK_X = { bb: -9, fs: -3, vb: 3, bd: 9 };
+const KIOSK_X = { bb: -10, fs: -5, vb: 0, bd: 5, cb: 10 };
 const FONT = '"Pretendard", "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif';
 
 export class Kiosks {
@@ -355,6 +364,25 @@ export class Match {
     else this.onEvent({ ...ev, b: 'me' });
   }
 
+  // 츄크볼: 내가 계산 중인 공이 골대 그물에 맞음 → 모두에게 알림 (슛한 팀 = 마지막에 만진 나의 팀)
+  chukBounce() {
+    if (this.code !== 'cb') return;
+    const ev = { k: 'cbb', tm: this.avatar.team || 'r' };
+    if (this.mp) this.mp.room.sendEvent(ev);
+    else this.onEvent(ev);
+  }
+
+  // 츄크볼: 튄 공을 누가 잡음 → 상대 팀이 잡으면 수비 성공, 같은 팀이 잡으면 상대 득점
+  onGrab(it) {
+    if (this.code !== 'cb' || !this.rebound || it !== this.ball) return;
+    if (performance.now() - this.rebound.at > 5000) { this.rebound = null; return; }
+    const tm = this.rebound.tm;
+    this.rebound = null;
+    if (this.avatar.team === tm) { if (this.playing) this.point(other(tm), 1); }
+    else if (this.mp) this.mp.room.sendEvent({ k: 'cbsave' });
+    else this.onEvent({ k: 'cbsave' });
+  }
+
   hoopGoal(hoop, n = 2) {
     this.point(hoop.x > 0 ? 'r' : 'b', n); // +x 골대 = 빨강이 공격하는 골대, 3점 라인 밖이면 3점
   }
@@ -365,6 +393,7 @@ export class Match {
         if (this.isHost && this.state.phase !== 'run') this.start();
         break;
       case 'pt': {
+        this.rebound = null;
         const tm = ev.tm === 'b' ? 'b' : 'r';
         const n = Math.max(1, Math.min(3, Number(ev.n) || 1));
         const who = this.mp && ev.b !== this.mp.me ? this.mp.nameOf(ev.b) : '';
@@ -380,6 +409,14 @@ export class Match {
         }
         break;
       }
+      case 'cbb': // 츄크볼: 공이 골대 그물에 맞고 튐 (tm = 슛한 팀)
+        this.rebound = { tm: ev.tm === 'b' ? 'b' : 'r', at: performance.now() };
+        break;
+      case 'cbsave':
+        this.rebound = null;
+        this.hud.popup(`🧤 수비 성공!${this.mp && ev.b !== this.mp.me ? ` (${this.mp.nameOf(ev.b)})` : ''}`);
+        this.sound.pop();
+        break;
       case 'rs': {
         // 공 다시 놓기: 들고 있던 사람은 내려놓음
         const it = this.ball;
@@ -458,6 +495,16 @@ export class Match {
         const loser = sp.inCourt(b.x, b.z) ? sp.side(b.x, b.z) : (this.avatar.team || 'r');
         this.point(other(loser), 1);
       }
+    } else if (this.code === 'cb') {
+      const rb = this.rebound;
+      if (!rb) return;
+      if (performance.now() - rb.at > 5000) { this.rebound = null; return; }
+      if (b.y > r + 0.05) return;
+      this.rebound = null;
+      if (!this.playing) { this.hud.popup('🥅 좋은 슛! (연습)'); return; }
+      const inCourt = Math.abs(b.x) <= CHUK.halfL && Math.abs(b.z) <= CHUK.halfW;
+      const inZone = Math.min(Math.hypot(b.x - CHUK.frameX, b.z), Math.hypot(b.x + CHUK.frameX, b.z)) < CHUK.zone;
+      this.point(inCourt && !inZone ? rb.tm : other(rb.tm), 1);
     } else if (this.code === 'fs') {
       if (Math.abs(b.x) < FUTSAL_X - 1.5) this.goalArmed = true;
       if (this.goalArmed && Math.abs(b.x) > FUTSAL_X + r && Math.abs(b.z) < FUTSAL_GOAL.halfW && b.y < FUTSAL_GOAL.h) {
