@@ -102,13 +102,20 @@ export class Game {
           if (this.angleTo(this.passTarget.position) < this.angleTo(this.shotTarget)) this.shotTarget = null;
           else this.passTarget = null;
         }
+        // 츄크볼 경기장: 골대 그물 쪽을 보면 슛 (금지 구역 밖에서만)
+        this.cbTarget = held.type === 'dodgeball' && this.space === 'cb' ? this.findChukFrame() : null;
+        if (this.cbTarget && this.passTarget) {
+          if (this.angleTo(this.passTarget.position) < this.angleTo(this.cbTarget.body.position)) this.cbTarget = null;
+          else this.passTarget = null;
+        }
         const pt = this.passTarget;
         if (this.shotTarget) {
           const h = this.shotTarget;
           this.shotSweet = shotSweet(Math.hypot(h.x - pos.x, h.z - pos.z));
           this.shotThree = isThreePoint(pos, h);
         }
-        if (pt) acts.push({ id: 'pass', label: '패스', key: 'Q', color: 'throw', target: pt });
+        if (this.cbTarget) acts.push({ id: 'cbshot', label: '슛', key: 'Q', color: 'throw', target: this.cbTarget });
+        else if (pt) acts.push({ id: 'pass', label: '패스', key: 'Q', color: 'throw', target: pt });
         else acts.push({ id: 'throw', label: this.shotTarget ? (this.shotThree ? '3점\n슛' : '슛') : '던지기', key: 'Q', hold: true, color: 'throw' });
         if (held.def.toss) acts.push({ id: 'toss', label: '토스', key: 'R', color: 'toss' });
         if (held.def.kick) acts.push(pt
@@ -407,6 +414,7 @@ export class Game {
         this.fsCharge = { token, power: 0, it: act.target };
         return;
       case 'pass': return this.passTo(this.held, act.target, false);
+      case 'cbshot': return this.chukShot(act.target);
       case 'kickpass': return this.passTo(act.ball || this.held, act.target, true);
       case 'join':
         if (this.onJoinSport) this.onJoinSport(act.target);
@@ -490,6 +498,7 @@ export class Game {
     this.held = it;
     this.avatar.holdPose = it.def.hold;
     if (this.mp) this.mp.markHeld(it);
+    if (this.onGrab) this.onGrab(it);
     if (it.def.rope) {
       it.mesh.visible = false;
       this.rope.pickUp();
@@ -781,6 +790,40 @@ export class Game {
   }
 
   // ---------------- 풋살: 드리블·슛 (빨강은 +x 골문 공격, 골라인 x = ±15.5, 골문 폭 3m·높이 2m) ----------------
+  // ---------------- 츄크볼 ----------------
+  // 바라보는 쪽의 골대 (3~11m). 금지 구역(3m) 안이면 null
+  findChukFrame() {
+    const p = this.avatar.position;
+    let best = null, bestA = 0.6;
+    for (const f of this.cbFrames || []) {
+      const q = f.body.position;
+      const d = Math.hypot(q.x - p.x, q.z - p.z);
+      if (d < 3.1 || d > 11) continue;
+      const ang = this.angleTo(q);
+      if (ang < bestA) { bestA = ang; best = f; }
+    }
+    return best;
+  }
+
+  // 그물 가운데를 향해 던짐 (그물에 맞으면 앞쪽으로 튕겨 나옴)
+  chukShot(f) {
+    const it = this.held;
+    if (!it || !f) return;
+    const a = this.avatar;
+    const c = f.bedCenter;
+    const dx0 = c.x - a.position.x, dz0 = c.z - a.position.z, d0 = Math.hypot(dx0, dz0) || 1;
+    a.faceDirection(dx0 / d0, dz0 / d0);
+    a.playAction('throw');
+    this.sound.throw();
+    const start = this.v.set(a.position.x + (dx0 / d0) * 0.35, a.position.y + 1.6, a.position.z + (dz0 / d0) * 0.35);
+    this.clearHeld();
+    it.body.position.set(start.x, start.y, start.z);
+    const dx = c.x - start.x, dz = c.z - start.z, d = Math.hypot(dx, dz);
+    const T = Math.max(0.3, d / 13);
+    const vy = (c.y - start.y + 0.5 * G * T * T) / T;
+    this.items.launch(it, dx / T, vy, dz / T);
+  }
+
   // 공격할 골문 (바라보는 방향이 골문 쪽일 때만)
   futsalGoal() {
     const team = this.avatar.team;

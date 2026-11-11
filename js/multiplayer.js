@@ -380,7 +380,7 @@ export class Multiplayer {
           this.hud.toast(`${by}의 패스! 🙌`);
         }
         break;
-      case 'pt': case 'start': case 'rs':
+      case 'pt': case 'start': case 'rs': case 'cbb': case 'cbsave':
         if (this.match) this.match.onEvent(ev);
         break;
       case 'npcpull':

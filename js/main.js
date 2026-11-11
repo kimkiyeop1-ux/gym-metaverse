@@ -12,7 +12,7 @@ import { FlagBeltBox, PracticeFriend } from './flagFootball.js';
 import { Hud } from './hud.js';
 import { Game, isThreePoint } from './game.js';
 import { VolleyballFixedNet, ChukballFrame, FutsalGoal } from './equipment.js';
-import { Kiosks, Match, SPORTS, SPORT_CODES } from './match.js';
+import { Kiosks, Match, SPORTS, SPORT_CODES, CHUK } from './match.js';
 import { buildStorageArea, slotX, STORAGE_Z, NameTag } from './storageArea.js';
 import { Sound } from './sound.js';
 import { Effects, BlobShadows } from './effects.js';
@@ -132,7 +132,31 @@ const badmintonNet = new BadmintonNet(scene, physics, 9, 0); // 오른쪽 배드
 const volleyNet = new VolleyballFixedNet(scene, physics);      // 가운데 배구 코트 (고정)
 const futsalGoals = [new FutsalGoal(scene, physics, 15.5, -1), new FutsalGoal(scene, physics, -15.5, 1)];
 const kiosks = new Kiosks(scene);                              // 경기장 가는 발판 (+z 벽 쪽)
-const chukball = new ChukballFrame(scene, physics, -9, 7, +1); // +x 쪽을 바라봄
+// 츄크볼 경기장: 양쪽 끝 골대(고정) + 골대 앞 금지 구역 반원
+const cbFrames = [new ChukballFrame(scene, physics, -CHUK.frameX, 0, +1), new ChukballFrame(scene, physics, CHUK.frameX, 0, -1)];
+const cbZones = new THREE.Group();
+for (const f of cbFrames) {
+  f.setFixed();
+  f.onBounce = (ballBody) => {
+    sound.chuk();
+    const p = f.body.position;
+    effects.ring(p.x + f.normal.x * 0.05, 0.75, p.z, f.normal);
+    // 내가 계산 중인 공이 그물에 맞음 → 츄크볼 득점 판정 시작
+    const it = ballBody.userData && ballBody.userData.item;
+    if (match && it && !it.remote) match.chukBounce();
+  };
+  f.setActive(false);
+  const side = Math.sign(f.normal.x); // 반원은 골대 앞쪽(코트 쪽)
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(CHUK.zone - 0.06, CHUK.zone + 0.06, 32, 1, side > 0 ? -Math.PI / 2 : Math.PI / 2, Math.PI).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({ color: '#ff7f50', transparent: true, opacity: 0.9, depthWrite: false })
+  );
+  ring.position.set(f.body.position.x, 0.017, 0);
+  cbZones.add(ring);
+}
+cbZones.visible = false;
+scene.add(cbZones);
+const chukball = new ChukballFrame(scene, physics, -13, 3, +1); // +x 쪽을 바라봄 (경기 발판과 떨어지게)
 chukball.onBounce = () => {
   sound.chuk();
   const p = chukball.body.position;
@@ -155,6 +179,7 @@ const game = new Game({
   landmarks: lobbyLandmarks,
 });
 game.kiosks = kiosks;
+game.onGrab = (it) => { if (match) match.onGrab(it); };
 game.onJoinSport = (code) => switchSpace(code);
 
 // ---------- 공간: 자유 체육관(로비) ↔ 종목 경기장 ----------
@@ -171,6 +196,9 @@ function applySpaceLayout(code) {
   volleyNet.setActive(code === 'vb');
   badmintonNet.setActive(code === 'bd');
   for (const g of futsalGoals) g.setActive(code === 'fs');
+  for (const f of cbFrames) { f.setActive(code === 'cb'); f.setFixed(); f.group.position.set(f.body.position.x, 0, f.body.position.z); }
+  cbZones.visible = code === 'cb';
+  game.cbFrames = code === 'cb' ? cbFrames : null;
   chukball.setActive(lobby);
   beltBox.setActive(lobby);
   npc.setActive(lobby);

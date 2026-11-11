@@ -262,4 +262,19 @@ export class ChukballFrame {
     if (on) this.reset();
     setPresent(this.world, [this.group], [this.body], on);
   }
+
+  // 경기장 골대: 밀려나지 않게 고정
+  setFixed() {
+    const b = this.body;
+    b.type = CANNON.Body.STATIC;
+    b.mass = 0;
+    b.updateMassProperties();
+    b.velocity.set(0, 0, 0);
+  }
+
+  // 그물 가운데 (조준용)
+  get bedCenter() {
+    const p = this.body.position;
+    return { x: p.x, y: 0.75, z: p.z };
+  }
 }
